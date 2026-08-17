@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import Link from "next/link";
@@ -220,49 +220,76 @@ export default function InventarioPage() {
     },
   });
 
-  // Mantém o foco no input sempre que possível
-  useEffect(() => {
-    const focusInput = () => inputRef.current?.focus();
-    focusInput();
-    
-    // Tenta focar nos primeiros milissegundos para garantir em hardware lento (Android)
-    const interval = setInterval(focusInput, 300);
-    setTimeout(() => clearInterval(interval), 1500);
+  const bufferRef = useRef("");
+  const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const handleClick = (e: MouseEvent) => {
-      // Não rouba o foco se o usuário clicou no botão Finalizar
-      const target = e.target as HTMLElement;
-      if (!target.closest('button')) {
-        focusInput();
+  // ─── Captura global de teclado ────────────────────────────────────────────
+  // Esta abordagem funciona mesmo que o input não tenha foco (Android WebView / Bluebird).
+  // O scanner envia caracteres em rajada e finaliza com Enter (\r ou \n).
+  // Interceptamos TODOS os keydown na window e montamos o código em um buffer.
+  const submitCodigo = useCallback((code: string) => {
+    const finalCode = code.trim();
+    if (!finalCode || mutation.isPending) return;
+    setCodigo("");
+    bufferRef.current = "";
+    if (inputRef.current) inputRef.current.value = "";
+    mutation.mutate({ inventarioId, codigoBarra: finalCode });
+  }, [mutation, inventarioId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignora teclas modificadoras e funções
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      if (e.key === "Enter" || e.key === "\r") {
+        // Submete o que estiver no buffer
+        if (bufferRef.current.trim()) {
+          const code = bufferRef.current;
+          bufferRef.current = "";
+          setCodigo("");
+          if (inputRef.current) inputRef.current.value = "";
+          if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
+          submitCodigo(code);
+        }
+        return;
+      }
+
+      // Aceita apenas caracteres imprimíveis (números, letras)
+      if (e.key.length === 1) {
+        bufferRef.current += e.key;
+        setCodigo(bufferRef.current);
+        if (inputRef.current) inputRef.current.value = bufferRef.current;
+
+        // Safety: se em 500ms não veio o Enter, limpa o buffer
+        if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
+        bufferTimerRef.current = setTimeout(() => {
+          bufferRef.current = "";
+          setCodigo("");
+          if (inputRef.current) inputRef.current.value = "";
+        }, 500);
       }
     };
-    
-    window.addEventListener("click", handleClick);
-    return () => window.removeEventListener("click", handleClick);
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [submitCodigo]);
+
+  // Mantém o foco no input como fallback para navegação por teclado físico
+  useEffect(() => {
+    const focusInput = () => {
+      if (document.activeElement?.tagName !== "BUTTON") {
+        inputRef.current?.focus();
+      }
+    };
+    focusInput();
+    const t = setInterval(focusInput, 1000);
+    return () => clearInterval(t);
   }, []);
 
-  // Re-foca o input sempre que a lista de itens for atualizada (após invalidate)
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [itens]);
-
+  // Form tradicional como fallback (desktop / tablet)
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    
-    // Hardwares (Bluebird/Zebra) disparam input e submit no mesmo milissegundo.
-    // Lemos direto do inputRef pois o state (codigo) pode estar desatualizado.
-    const currentVal = inputRef.current?.value ?? codigo;
-    const finalCode = currentVal.trim();
-
-    if (!finalCode || mutation.isPending) return;
-    
-    mutation.mutate({ inventarioId, codigoBarra: finalCode });
-    
-    // Força a limpeza da interface imediatamente para evitar ghost inputs
-    setCodigo("");
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
+    submitCodigo(bufferRef.current ?? codigo);
   };
 
   // ─── Contadores ────────────────────────────────────────────────────────────
