@@ -221,7 +221,7 @@ export const inventoryRouter = createTRPCRouter({
         select: { status: true },
       });
 
-      if (!inventario || inventario.status !== "ABERTO") {
+      if (inventario?.status !== "ABERTO") {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Inventário já foi finalizado. Não é possível remover itens.",
