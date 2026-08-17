@@ -1,0 +1,58 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Inventario
+// Representa a sessão de contagem de uma unidade em uma data específica.
+// `unidade_id` referencia o `id_unidade` do banco legado torre_controle.
+// ---------------------------------------------------------------------------
+model Inventario {
+  id           String   @id @default(cuid())
+  data         DateTime @default(now())
+  unidade_id   Int
+  /// "ABERTO" | "CONCLUIDO"
+  status       String   @default("ABERTO")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  itens ItemInventario[]
+
+  @@index([unidade_id])
+  @@index([data])
+  @@index([status])
+  @@map("inventarios")
+}
+
+// ---------------------------------------------------------------------------
+// ItemInventario
+// Cada registro representa uma leitura de código de barras durante o inventário.
+// `status_auditoria` indica o resultado da comparação com o estoque legado:
+//   "ENCONTRADO_CORRETO" – bipado e presente no sistema
+//   "SOBRA_NA_BASE"      – presente no sistema mas não bipado (faltou bipe)
+//   "FALTANTE"           – bipado mas ausente no sistema
+// ---------------------------------------------------------------------------
+model ItemInventario {
+  id               String   @id @default(cuid())
+  inventario_id    String   @map("inventario_id")
+  codigo_barra     String   @map("codigo_barra")
+  /// "ENCONTRADO_CORRETO" | "SOBRA_NA_BASE" | "FALTANTE"
+  status_auditoria String   @map("status_auditoria")
+  criadoEm         DateTime @default(now()) @map("criado_em")
+
+  inventario Inventario @relation(fields: [inventario_id], references: [id], onDelete: Cascade)
+
+  @@index([inventario_id])
+  @@index([codigo_barra])
+  @@index([status_auditoria])
+  @@map("itens_inventario")
+}
