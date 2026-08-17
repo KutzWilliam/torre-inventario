@@ -212,6 +212,29 @@ export const inventoryRouter = createTRPCRouter({
       };
     }),
 
+  removerItem: publicProcedure
+    .input(z.object({ itemId: z.string(), inventarioId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Garante que o inventário ainda está aberto
+      const inventario = await ctx.db.inventario.findUnique({
+        where: { id: input.inventarioId },
+        select: { status: true },
+      });
+
+      if (!inventario || inventario.status !== "ABERTO") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Inventário já foi finalizado. Não é possível remover itens.",
+        });
+      }
+
+      await ctx.db.itemInventario.delete({
+        where: { id: input.itemId },
+      });
+
+      return { success: true };
+    }),
+
   listarItensDoInventario: publicProcedure
     .input(z.object({ inventarioId: z.string() }))
     .query(async ({ ctx, input }) => {

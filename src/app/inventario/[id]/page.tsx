@@ -66,7 +66,7 @@ type ItemEnriquecido = {
 };
 
 // ─── Linha da tabela ───────────────────────────────────────────────────────
-function ItemRow({ item, isNew }: { item: ItemEnriquecido; isNew?: boolean }) {
+function ItemRow({ item, isNew, onRemover }: { item: ItemEnriquecido; isNew?: boolean; onRemover: (id: string) => void }) {
   const cteZero = item.detalhe?.cte_zero === true;
   const isExtravio = item.status_auditoria === "POSSIVEL_EXTRAVIO";
   const trota = item.detalhe?.destino_nome && item.detalhe?.origem_nome
@@ -153,6 +153,20 @@ function ItemRow({ item, isNew }: { item: ItemEnriquecido; isNew?: boolean }) {
           {trota}
         </span>
       </td>
+
+      {/* Remover */}
+      <td className="px-4 py-3">
+        <button
+          onClick={() => onRemover(item.id)}
+          title="Remover volume"
+          className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all duration-150"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </td>
     </tr>
   );
 }
@@ -168,6 +182,8 @@ export default function InventarioPage() {
   const [duplicado, setDuplicado] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const duplicadoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Timer para auto-submit após pausa do leitor de código de barras
+  const scannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Queries e Mutations do tRPC
   const trpcUtils = api.useUtils();
@@ -196,6 +212,20 @@ export default function InventarioPage() {
       alert(`Erro ao fechar inventário: ${err.message}`);
     },
   });
+
+  const removerMutation = api.inventory.removerItem.useMutation({
+    onSuccess: () => {
+      void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
+    },
+    onError: (err) => {
+      alert(`Erro ao remover item: ${err.message}`);
+    },
+  });
+
+  const handleRemover = (itemId: string) => {
+    if (!confirm("Remover este volume do inventário?")) return;
+    removerMutation.mutate({ itemId, inventarioId });
+  };
 
   const mutation = api.inventory.processarBipagemDiaria.useMutation({
     onSuccess: (data) => {
@@ -233,10 +263,30 @@ export default function InventarioPage() {
     inputRef.current?.focus();
   }, [itens]);
 
+  const submitCodigo = (value: string) => {
+    if (!value.trim() || mutation.isPending) return;
+    mutation.mutate({ inventarioId, codigoBarra: value.trim() });
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!codigo.trim() || mutation.isPending) return;
-    mutation.mutate({ inventarioId, codigoBarra: codigo.trim() });
+    // Cancela o debounce se o usuário aperta Enter manualmente
+    if (scannerTimerRef.current) clearTimeout(scannerTimerRef.current);
+    submitCodigo(codigo);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCodigo(value);
+
+    // Auto-submit: aguarda 220ms de silêncio após o último caractere
+    // (leitores de código de barras enviam todos os chars em <100ms)
+    if (scannerTimerRef.current) clearTimeout(scannerTimerRef.current);
+    if (value.trim()) {
+      scannerTimerRef.current = setTimeout(() => {
+        submitCodigo(value);
+      }, 220);
+    }
   };
 
   // ─── Contadores ────────────────────────────────────────────────────────────
@@ -332,7 +382,7 @@ export default function InventarioPage() {
             ref={inputRef}
             type="text"
             value={codigo}
-            onChange={(e) => setCodigo(e.target.value)}
+            onChange={handleChange}
             placeholder="Aguardando código de barras..."
             className={[
               "block w-full pl-14 pr-4 py-5 text-xl font-mono text-slate-900 bg-white border-2 rounded-2xl focus:ring-0 shadow-sm transition-all placeholder:text-slate-400 placeholder:font-sans",
@@ -404,6 +454,7 @@ export default function InventarioPage() {
                     <th className="px-4 py-3 font-semibold">Manifesto</th>
                     <th className="px-4 py-3 font-semibold">Prev. Entrega</th>
                     <th className="px-4 py-3 font-semibold">Rota</th>
+                    <th className="px-4 py-3 font-semibold"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -412,6 +463,7 @@ export default function InventarioPage() {
                       key={item.id}
                       item={item}
                       isNew={item.id === lastScannedId}
+                      onRemover={handleRemover}
                     />
                   ))}
                 </tbody>
