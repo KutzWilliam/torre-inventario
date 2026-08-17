@@ -222,8 +222,21 @@ export default function InventarioPage() {
 
   // Mantém o foco no input sempre que possível
   useEffect(() => {
-    inputRef.current?.focus();
-    const handleClick = () => inputRef.current?.focus();
+    const focusInput = () => inputRef.current?.focus();
+    focusInput();
+    
+    // Tenta focar nos primeiros milissegundos para garantir em hardware lento (Android)
+    const interval = setInterval(focusInput, 300);
+    setTimeout(() => clearInterval(interval), 1500);
+
+    const handleClick = (e: MouseEvent) => {
+      // Não rouba o foco se o usuário clicou no botão Finalizar
+      const target = e.target as HTMLElement;
+      if (!target.closest('button')) {
+        focusInput();
+      }
+    };
+    
     window.addEventListener("click", handleClick);
     return () => window.removeEventListener("click", handleClick);
   }, []);
@@ -235,8 +248,21 @@ export default function InventarioPage() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!codigo.trim() || mutation.isPending) return;
-    mutation.mutate({ inventarioId, codigoBarra: codigo.trim() });
+    
+    // Hardwares (Bluebird/Zebra) disparam input e submit no mesmo milissegundo.
+    // Lemos direto do inputRef pois o state (codigo) pode estar desatualizado.
+    const currentVal = inputRef.current?.value || codigo;
+    const finalCode = currentVal.trim();
+
+    if (!finalCode || mutation.isPending) return;
+    
+    mutation.mutate({ inventarioId, codigoBarra: finalCode });
+    
+    // Força a limpeza da interface imediatamente para evitar ghost inputs
+    setCodigo("");
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
   };
 
   // ─── Contadores ────────────────────────────────────────────────────────────
