@@ -244,7 +244,7 @@ export default function InventarioPage() {
       if (e.key === "Enter" || e.key === "\r") {
         // Modo Injection (Bluebird/Zebra): os chars vão direto pro <input> sem gerar keydown.
         // Nesses casos bufferRef fica vazio — usamos o valor atual do input como fallback.
-        const code = bufferRef.current || inputRef.current?.value || "";
+        const code = bufferRef.current.length > 0 ? bufferRef.current : (inputRef.current?.value ?? "");
         if (code.trim()) {
           bufferRef.current = "";
           setCodigo("");
