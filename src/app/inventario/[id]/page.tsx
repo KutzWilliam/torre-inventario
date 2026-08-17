@@ -242,14 +242,15 @@ export default function InventarioPage() {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       if (e.key === "Enter" || e.key === "\r") {
-        // Submete o que estiver no buffer
-        if (bufferRef.current.trim()) {
-          const code = bufferRef.current;
+        // Modo Injection (Bluebird/Zebra): os chars vão direto pro <input> sem gerar keydown.
+        // Nesses casos bufferRef fica vazio — usamos o valor atual do input como fallback.
+        const code = bufferRef.current || inputRef.current?.value || "";
+        if (code.trim()) {
           bufferRef.current = "";
           setCodigo("");
           if (inputRef.current) inputRef.current.value = "";
           if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
-          submitCodigo(code);
+          submitCodigo(code.trim());
         }
         return;
       }
@@ -385,7 +386,14 @@ export default function InventarioPage() {
             ref={inputRef}
             type="text"
             value={codigo}
-            onChange={(e) => setCodigo(e.target.value)}
+            onChange={(e) => {
+              // Modo Keyboard Injection (Bluebird): injeção vai direto pro input via evento `input`,
+              // sem gerar keydown por caractere. Sincronizamos o bufferRef aqui para que o
+              // handler do Enter encontre o valor correto.
+              const v = e.target.value;
+              setCodigo(v);
+              bufferRef.current = v;
+            }}
             placeholder="Aguardando código de barras..."
             className={[
               "block w-full pl-14 pr-4 py-5 text-xl font-mono text-slate-900 bg-white border-2 rounded-2xl focus:ring-0 shadow-sm transition-all placeholder:text-slate-400 placeholder:font-sans",
