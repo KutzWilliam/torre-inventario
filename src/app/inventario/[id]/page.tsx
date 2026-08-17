@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import Link from "next/link";
@@ -220,77 +220,23 @@ export default function InventarioPage() {
     },
   });
 
-  const bufferRef = useRef("");
-  const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ─── Captura global de teclado ────────────────────────────────────────────
-  // Esta abordagem funciona mesmo que o input não tenha foco (Android WebView / Bluebird).
-  // O scanner envia caracteres em rajada e finaliza com Enter (\r ou \n).
-  // Interceptamos TODOS os keydown na window e montamos o código em um buffer.
-  const submitCodigo = useCallback((code: string) => {
-    const finalCode = code.trim();
-    if (!finalCode || mutation.isPending) return;
-    setCodigo("");
-    bufferRef.current = "";
-    if (inputRef.current) inputRef.current.value = "";
-    mutation.mutate({ inventarioId, codigoBarra: finalCode });
-  }, [mutation, inventarioId]);
-
+  // Mantém o foco no input sempre que possível
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignora teclas modificadoras e funções
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
-
-      if (e.key === "Enter" || e.key === "\r") {
-        // Modo Injection (Bluebird/Zebra): os chars vão direto pro <input> sem gerar keydown.
-        // Nesses casos bufferRef fica vazio — usamos o valor atual do input como fallback.
-        const code = bufferRef.current.length > 0 ? bufferRef.current : (inputRef.current?.value ?? "");
-        if (code.trim()) {
-          bufferRef.current = "";
-          setCodigo("");
-          if (inputRef.current) inputRef.current.value = "";
-          if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
-          submitCodigo(code.trim());
-        }
-        return;
-      }
-
-      // Aceita apenas caracteres imprimíveis (números, letras)
-      if (e.key.length === 1) {
-        bufferRef.current += e.key;
-        setCodigo(bufferRef.current);
-        if (inputRef.current) inputRef.current.value = bufferRef.current;
-
-        // Safety: se em 500ms não veio o Enter, limpa o buffer
-        if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
-        bufferTimerRef.current = setTimeout(() => {
-          bufferRef.current = "";
-          setCodigo("");
-          if (inputRef.current) inputRef.current.value = "";
-        }, 500);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [submitCodigo]);
-
-  // Mantém o foco no input como fallback para navegação por teclado físico
-  useEffect(() => {
-    const focusInput = () => {
-      if (document.activeElement?.tagName !== "BUTTON") {
-        inputRef.current?.focus();
-      }
-    };
-    focusInput();
-    const t = setInterval(focusInput, 1000);
-    return () => clearInterval(t);
+    inputRef.current?.focus();
+    const handleClick = () => inputRef.current?.focus();
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
   }, []);
 
-  // Form tradicional como fallback (desktop / tablet)
+  // Re-foca o input sempre que a lista de itens for atualizada (após invalidate)
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [itens]);
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    submitCodigo(bufferRef.current ?? codigo);
+    if (!codigo.trim() || mutation.isPending) return;
+    mutation.mutate({ inventarioId, codigoBarra: codigo.trim() });
   };
 
   // ─── Contadores ────────────────────────────────────────────────────────────
@@ -386,14 +332,7 @@ export default function InventarioPage() {
             ref={inputRef}
             type="text"
             value={codigo}
-            onChange={(e) => {
-              // Modo Keyboard Injection (Bluebird): injeção vai direto pro input via evento `input`,
-              // sem gerar keydown por caractere. Sincronizamos o bufferRef aqui para que o
-              // handler do Enter encontre o valor correto.
-              const v = e.target.value;
-              setCodigo(v);
-              bufferRef.current = v;
-            }}
+            onChange={(e) => setCodigo(e.target.value)}
             placeholder="Aguardando código de barras..."
             className={[
               "block w-full pl-14 pr-4 py-5 text-xl font-mono text-slate-900 bg-white border-2 rounded-2xl focus:ring-0 shadow-sm transition-all placeholder:text-slate-400 placeholder:font-sans",
