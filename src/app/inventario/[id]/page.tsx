@@ -251,7 +251,7 @@ export default function InventarioPage() {
     
     // Hardwares (Bluebird/Zebra) disparam input e submit no mesmo milissegundo.
     // Lemos direto do inputRef pois o state (codigo) pode estar desatualizado.
-    const currentVal = inputRef.current?.value || codigo;
+    const currentVal = inputRef.current?.value ?? codigo;
     const finalCode = currentVal.trim();
 
     if (!finalCode || mutation.isPending) return;
