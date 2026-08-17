@@ -513,7 +513,7 @@ export const inventoryRouter = createTRPCRouter({
             String(o.barra_volume),
             {
               id_oco: o.id_oco ? Number(o.id_oco) : null,
-              data_evento: o.data_evento ? new Date(o.data_evento) : null,
+              data_evento: o.data_evento ? new Date(o.data_evento as string | number | Date) : null,
               status: o.status ? Number(o.status) : null,
             }
           ])

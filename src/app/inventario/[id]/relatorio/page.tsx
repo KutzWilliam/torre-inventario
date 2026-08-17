@@ -187,8 +187,8 @@ export default function RelatorioInventarioPage() {
         "Código de Barras": item.codigo_barra,
         "Status": statusFormatado,
         "Última Ocorrência": item.ocorrencia?.id_oco != null ? getOcorrenciaDescricao(item.ocorrencia.id_oco) : "—",
-        "Minuta": item.detalhe?.id_minuta || "—",
-        "Manifesto": item.detalhe?.id_manifesto || "—",
+        "Minuta": item.detalhe?.id_minuta ?? "—",
+        "Manifesto": item.detalhe?.id_manifesto ?? "—",
         "Prev. Entrega": formatDate(item.detalhe?.prev_entrega),
         "Rota": rota,
         "Registrado Em": new Date(item.criadoEm).toLocaleString("pt-BR")
