@@ -411,7 +411,7 @@ export const inventoryRouter = createTRPCRouter({
       }
 
       // Enriquece as divergências com dados do banco legado
-      // (minuta, manifesto, prev_entrega, origem, destino, ultima_bipagem)
+      // (minuta, manifesto, prev_entrega, origem, destino, ultima_bipagem, ultima_ocorrencia)
       let divergenciasEnriquecidas: (typeof itens[number] & {
         detalhe: {
           id_minuta:    number | null;
@@ -426,6 +426,11 @@ export const inventoryRouter = createTRPCRouter({
           unidade_sigla: string | null;
           tipo: "EMBARQUE" | "DESEMBARQUE" | null;
           data: Date | null;
+        } | null;
+        ultima_ocorrencia: {
+          id_oco:       number | null;
+          data_evento:  Date | null;
+          status:       number | null;
         } | null;
       })[] = [];
 
@@ -496,11 +501,48 @@ export const inventoryRouter = createTRPCRouter({
           ])
         );
 
-        divergenciasEnriquecidas = divergencias.map((item) => ({
-          ...item,
-          detalhe: detalheMap.get(item.codigo_barra) ?? null,
-          ultima_bipagem: bipagensMap.get(item.codigo_barra) ?? null,
-        }));
+        // Busca a última ocorrência de cada volume via id_minuta
+        // (processo já tem id_minuta diretamente -- sem join intermediário)
+        const minutaIds = detalhes
+          .map((d) => d.id_minuta ? Number(d.id_minuta) : null)
+          .filter((id): id is number => id !== null);
+
+        const ocorrencias = minutaIds.length > 0
+          ? await dbReadonly`
+              SELECT DISTINCT ON (p.id_minuta)
+                p.id_minuta,
+                p.id_oco,
+                p.data_evento,
+                p.status
+              FROM processo p
+              WHERE p.id_minuta = ANY(${minutaIds})
+                AND p.id_oco > 0
+              ORDER BY p.id_minuta, p.data_evento DESC
+            `
+          : [];
+
+        // Mapa id_minuta -> ocorrencia
+        const ocorrenciasMap = new Map(
+          ocorrencias.map((o) => [
+            Number(o.id_minuta),
+            {
+              id_oco:      o.id_oco ? Number(o.id_oco) : null,
+              data_evento: o.data_evento ? new Date(o.data_evento as string | number | Date) : null,
+              status:      o.status ? Number(o.status) : null,
+            },
+          ])
+        );
+
+        divergenciasEnriquecidas = divergencias.map((item) => {
+          const detalhe = detalheMap.get(item.codigo_barra) ?? null;
+          const minutaId = detalhe?.id_minuta ?? null;
+          return {
+            ...item,
+            detalhe,
+            ultima_bipagem: bipagensMap.get(item.codigo_barra) ?? null,
+            ultima_ocorrencia: minutaId ? (ocorrenciasMap.get(minutaId) ?? null) : null,
+          };
+        });
       }
 
       return {
