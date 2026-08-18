@@ -75,7 +75,7 @@ function UltimaBipagemBadge({ bipagem }: { bipagem: UltimaBipagem }) {
   );
 }
 
-function DivRow({ item }: { item: { id: string; codigo_barra: string; status_auditoria: string; criadoEm: Date; detalhe: Detalhe; ultima_bipagem?: UltimaBipagem; ultima_ocorrencia?: { id_oco: number | null; descricao: string | null; data_evento: Date | null; status: number | null } | null } }) {
+function DivRow({ item }: { item: { id: string; codigo_barra: string; status_auditoria: string; criadoEm: Date; detalhe: Detalhe; ultima_bipagem?: UltimaBipagem; ultima_ocorrencia?: { id_oco: number | null; descricao: string | null; data_evento: Date | null } | null } }) {
   const rota = item.detalhe?.destino_nome && item.detalhe?.origem_nome
     ? `${item.detalhe.origem_nome} -> ${item.detalhe.destino_nome}`
     : item.detalhe?.destino_nome ?? item.detalhe?.origem_nome ?? "—";
@@ -99,7 +99,7 @@ function DivRow({ item }: { item: { id: string; codigo_barra: string; status_aud
         <UltimaBipagemBadge bipagem={item.ultima_bipagem ?? null} />
       </td>
 
-      {/* Ocorrência */}
+      {/* Situação Atual */}
       <td className="px-4 py-3 whitespace-nowrap">
         {item.ultima_ocorrencia?.id_oco != null ? (
           <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1.5 rounded-lg border border-slate-200">
@@ -222,7 +222,7 @@ export default function RelatorioInventarioPage() {
         "Última Bipagem": item.ultima_bipagem?.unidade_nome
           ? `${item.ultima_bipagem.tipo === "EMBARQUE" ? "Embarque" : "Desembarque"} - ${item.ultima_bipagem.unidade_nome}`
           : "—",
-        "Ocorrência": item.ultima_ocorrencia?.id_oco != null 
+        "Situação Atual": item.ultima_ocorrencia?.id_oco != null 
           ? (item.ultima_ocorrencia.descricao ?? `Código ${item.ultima_ocorrencia.id_oco}`) 
           : "—",
         "Minuta": item.detalhe?.id_minuta ?? "—",
@@ -418,7 +418,7 @@ export default function RelatorioInventarioPage() {
                         <th className="px-4 py-3 font-semibold">Código de Barras</th>
                         <th className="px-4 py-3 font-semibold">Tipo</th>
                         <th className="px-4 py-3 font-semibold">Última Bipagem</th>
-                        <th className="px-4 py-3 font-semibold">Ocorrência</th>
+                        <th className="px-4 py-3 font-semibold">Situação Atual</th>
                         <th className="px-4 py-3 font-semibold">Minuta</th>
                         <th className="px-4 py-3 font-semibold">Manifesto</th>
                         <th className="px-4 py-3 font-semibold">Prev. Entrega</th>
@@ -449,7 +449,7 @@ export default function RelatorioInventarioPage() {
                         <th className="px-4 py-3 font-semibold">Código de Barras</th>
                         <th className="px-4 py-3 font-semibold">Tipo</th>
                         <th className="px-4 py-3 font-semibold">Última Bipagem</th>
-                        <th className="px-4 py-3 font-semibold">Ocorrência</th>
+                        <th className="px-4 py-3 font-semibold">Situação Atual</th>
                         <th className="px-4 py-3 font-semibold">Minuta</th>
                         <th className="px-4 py-3 font-semibold">Manifesto</th>
                         <th className="px-4 py-3 font-semibold">Prev. Entrega</th>

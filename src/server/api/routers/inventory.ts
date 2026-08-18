@@ -431,7 +431,6 @@ export const inventoryRouter = createTRPCRouter({
           id_oco:       number | null;
           descricao:    string | null;
           data_evento:  Date | null;
-          status:       number | null;
         } | null;
       })[] = [];
 
@@ -510,17 +509,16 @@ export const inventoryRouter = createTRPCRouter({
 
         const ocorrencias = minutaIds.length > 0
           ? await dbReadonly`
-              SELECT DISTINCT ON (p.id_minuta)
-                p.id_minuta,
-                p.id_oco,
+              SELECT DISTINCT ON (f.frete)
+                f.frete as id_minuta,
+                f.status as id_oco,
                 t.descricao AS descricao,
-                p.data_evento,
-                p.status
-              FROM processo p
-              LEFT JOIN tipo_oco t ON t.id_oco = p.id_oco
-              WHERE p.id_minuta = ANY(${minutaIds})
-                AND p.id_oco > 0
-              ORDER BY p.id_minuta, p.data_evento DESC
+                f.created_at as data_evento
+              FROM frete_hist f
+              LEFT JOIN tipo_oco t ON t.id_oco = f.status
+              WHERE f.frete = ANY(${minutaIds})
+                AND f.status > 0
+              ORDER BY f.frete, f.created_at DESC
             `
           : [];
 
@@ -532,7 +530,6 @@ export const inventoryRouter = createTRPCRouter({
               id_oco:      o.id_oco ? Number(o.id_oco) : null,
               descricao:   o.descricao ? String(o.descricao) : null,
               data_evento: o.data_evento ? new Date(o.data_evento as string | number | Date) : null,
-              status:      o.status ? Number(o.status) : null,
             },
           ])
         );
