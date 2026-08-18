@@ -4,7 +4,6 @@ import { useParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
-import { getOcorrenciaDescricao } from "@/utils/ocorrencias";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -47,9 +46,38 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function DivRow({ item }: { item: { id: string; codigo_barra: string; status_auditoria: string; criadoEm: Date; detalhe: Detalhe; ocorrencia?: { id_oco: number | null; data_evento: Date | null; status: number | null } | null } }) {
+type UltimaBipagem = {
+  unidade_nome: string | null;
+  unidade_sigla: string | null;
+  tipo: "EMBARQUE" | "DESEMBARQUE" | null;
+  data: Date | null;
+} | null;
+
+function UltimaBipagemBadge({ bipagem }: { bipagem: UltimaBipagem }) {
+  if (!bipagem?.unidade_nome) return <span className="text-slate-300 text-sm">—</span>;
+  const isEmbarque = bipagem.tipo === "EMBARQUE";
+  const nomeDisplay = bipagem.unidade_nome.replace(/^(PRI|EPC|RI)\s+/i, "");
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className={[
+        "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide w-fit",
+        isEmbarque ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700",
+      ].join(" ")}>
+        {isEmbarque ? "Embarque" : "Desembarque"}
+      </span>
+      <span className="text-xs text-slate-600 font-medium leading-tight">
+        {nomeDisplay}
+        {bipagem.unidade_sigla ? (
+          <span className="ml-1 text-slate-400 font-mono text-[10px]">({bipagem.unidade_sigla})</span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+function DivRow({ item }: { item: { id: string; codigo_barra: string; status_auditoria: string; criadoEm: Date; detalhe: Detalhe; ultima_bipagem?: UltimaBipagem } }) {
   const rota = item.detalhe?.destino_nome && item.detalhe?.origem_nome
-    ? `${item.detalhe.origem_nome} → ${item.detalhe.destino_nome}`
+    ? `${item.detalhe.origem_nome} -> ${item.detalhe.destino_nome}`
     : item.detalhe?.destino_nome ?? item.detalhe?.origem_nome ?? "—";
 
   return (
@@ -66,15 +94,9 @@ function DivRow({ item }: { item: { id: string; codigo_barra: string; status_aud
         <StatusBadge status={item.status_auditoria} />
       </td>
 
-      {/* Ocorrência */}
-      <td className="px-4 py-3 whitespace-nowrap">
-        {item.ocorrencia?.id_oco != null ? (
-          <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1.5 rounded-lg border border-slate-200">
-            {getOcorrenciaDescricao(item.ocorrencia.id_oco)}
-          </span>
-        ) : (
-          <span className="text-slate-300 text-sm">—</span>
-        )}
+      {/* Última Bipagem */}
+      <td className="px-4 py-3">
+        <UltimaBipagemBadge bipagem={item.ultima_bipagem ?? null} />
       </td>
 
       {/* Minuta */}
@@ -186,7 +208,9 @@ export default function RelatorioInventarioPage() {
       return {
         "Código de Barras": item.codigo_barra,
         "Status": statusFormatado,
-        "Última Ocorrência": item.ocorrencia?.id_oco != null ? getOcorrenciaDescricao(item.ocorrencia.id_oco) : "—",
+        "Última Bipagem": item.ultima_bipagem?.unidade_nome
+          ? `${item.ultima_bipagem.tipo === "EMBARQUE" ? "Embarque" : "Desembarque"} - ${item.ultima_bipagem.unidade_nome}`
+          : "—",
         "Minuta": item.detalhe?.id_minuta ?? "—",
         "Manifesto": item.detalhe?.id_manifesto ?? "—",
         "Prev. Entrega": formatDate(item.detalhe?.prev_entrega),
@@ -379,7 +403,7 @@ export default function RelatorioInventarioPage() {
                       <tr className="text-[10px] uppercase tracking-wider text-slate-400">
                         <th className="px-4 py-3 font-semibold">Código de Barras</th>
                         <th className="px-4 py-3 font-semibold">Tipo</th>
-                        <th className="px-4 py-3 font-semibold">Ocorrência</th>
+                        <th className="px-4 py-3 font-semibold">Última Bipagem</th>
                         <th className="px-4 py-3 font-semibold">Minuta</th>
                         <th className="px-4 py-3 font-semibold">Manifesto</th>
                         <th className="px-4 py-3 font-semibold">Prev. Entrega</th>
@@ -409,7 +433,7 @@ export default function RelatorioInventarioPage() {
                       <tr className="text-[10px] uppercase tracking-wider text-slate-400">
                         <th className="px-4 py-3 font-semibold">Código de Barras</th>
                         <th className="px-4 py-3 font-semibold">Tipo</th>
-                        <th className="px-4 py-3 font-semibold">Ocorrência</th>
+                        <th className="px-4 py-3 font-semibold">Última Bipagem</th>
                         <th className="px-4 py-3 font-semibold">Minuta</th>
                         <th className="px-4 py-3 font-semibold">Manifesto</th>
                         <th className="px-4 py-3 font-semibold">Prev. Entrega</th>
@@ -439,7 +463,7 @@ export default function RelatorioInventarioPage() {
                       <tr className="text-[10px] uppercase tracking-wider text-slate-400">
                         <th className="px-4 py-3 font-semibold">Código de Barras</th>
                         <th className="px-4 py-3 font-semibold">Tipo</th>
-                        <th className="px-4 py-3 font-semibold">Ocorrência</th>
+                        <th className="px-4 py-3 font-semibold">Última Bipagem</th>
                         <th className="px-4 py-3 font-semibold">Minuta</th>
                         <th className="px-4 py-3 font-semibold">Manifesto</th>
                         <th className="px-4 py-3 font-semibold">Prev. Entrega</th>

@@ -238,61 +238,11 @@ export const inventoryRouter = createTRPCRouter({
   listarItensDoInventario: publicProcedure
     .input(z.object({ inventarioId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const itens = await ctx.db.itemInventario.findMany({
+      return ctx.db.itemInventario.findMany({
         where: { inventario_id: input.inventarioId },
         orderBy: { criadoEm: "desc" },
-        take: 100, // Retorna os últimos 100 itens bipados
+        take: 200,
       });
-
-      if (itens.length === 0) return [];
-
-      const barcodes = itens.map((i) => i.codigo_barra);
-
-      // Batch query no banco legado para trazer detalhes de cada volume
-      // DISTINCT ON (barra) garante um registro por código de barras
-      const detalhes = await dbReadonly`
-        SELECT DISTINCT ON (h.barra)
-          h.barra,
-          h.manifesto        AS id_manifesto,
-          v.id_minuta,
-          m.prev_entrega,
-          COALESCE(
-            (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.origem::text LIMIT 1),
-            m.origem
-          )                  AS origem_nome,
-          COALESCE(
-            (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.destino::text LIMIT 1),
-            m.destino
-          )                  AS destino_nome,
-          m.status           AS minuta_status,
-          m.cte_numero       AS cte_numero
-        FROM historico_volume h
-        INNER JOIN volumes v  ON h.id_volume  = v.id_volume
-        INNER JOIN minuta  m  ON v.id_minuta  = m.id_minuta
-        WHERE h.barra = ANY(${barcodes})
-        ORDER BY h.barra, h.id DESC
-      `;
-
-      // Monta mapa barra -> detalhe
-      const detalheMap = new Map(
-        detalhes.map((d) => [
-          String(d.barra),
-          {
-            id_minuta:     d.id_minuta     ? Number(d.id_minuta)    : null,
-            id_manifesto:  d.id_manifesto  ? Number(d.id_manifesto) : null,
-            prev_entrega:  d.prev_entrega  as string | null,
-            origem_nome:   d.origem_nome   as string | null,
-            destino_nome:  d.destino_nome  as string | null,
-            minuta_status: d.minuta_status ? Number(d.minuta_status): null,
-            cte_zero:      String(d.cte_numero ?? '') === '0',
-          },
-        ])
-      );
-
-      return itens.map((item) => ({
-        ...item,
-        detalhe: detalheMap.get(item.codigo_barra) ?? null,
-      }));
     }),
 
   listarInventarios: publicProcedure
@@ -461,7 +411,7 @@ export const inventoryRouter = createTRPCRouter({
       }
 
       // Enriquece as divergências com dados do banco legado
-      // (minuta, manifesto, prev_entrega, origem, destino, ocorrencia)
+      // (minuta, manifesto, prev_entrega, origem, destino, ultima_bipagem)
       let divergenciasEnriquecidas: (typeof itens[number] & {
         detalhe: {
           id_minuta:    number | null;
@@ -471,10 +421,11 @@ export const inventoryRouter = createTRPCRouter({
           destino_nome: string | null;
           minuta_status: number | null;
         } | null;
-        ocorrencia: {
-          id_oco: number | null;
-          data_evento: Date | null;
-          status: number | null;
+        ultima_bipagem: {
+          unidade_nome: string | null;
+          unidade_sigla: string | null;
+          tipo: "EMBARQUE" | "DESEMBARQUE" | null;
+          data: Date | null;
         } | null;
       })[] = [];
 
@@ -519,33 +470,36 @@ export const inventoryRouter = createTRPCRouter({
           ])
         );
 
-        const ocorrencias = await dbReadonly`
-          SELECT DISTINCT ON (pv.barra_volume)
-            pv.barra_volume,
-            p.id_oco,
-            p.data_evento,
-            p.status
-          FROM processo_volumes pv
-          INNER JOIN processo p ON pv.id_processo = p.id_processo
-          WHERE pv.barra_volume = ANY(${barcodes})
-          ORDER BY pv.barra_volume, p.data_evento DESC
+        const ultimasBipagens = await dbReadonly`
+          SELECT DISTINCT ON (h.barra)
+            h.barra,
+            h.data,
+            p.tipo   AS tipo_picking,
+            u.fantasia AS unidade_nome,
+            u.sigla    AS unidade_sigla
+          FROM historico_volume h
+          INNER JOIN picking p ON h.manifesto = p.id_manifesto AND p.tipo = h.tipo
+          INNER JOIN unidades u ON u.id_unidade = p.unidade
+          WHERE h.barra = ANY(${barcodes})
+          ORDER BY h.barra, h.id DESC
         `;
 
-        const ocorrenciasMap = new Map(
-          ocorrencias.map((o) => [
-            String(o.barra_volume),
+        const bipagensMap = new Map(
+          ultimasBipagens.map((b) => [
+            String(b.barra),
             {
-              id_oco: o.id_oco ? Number(o.id_oco) : null,
-              data_evento: o.data_evento ? new Date(o.data_evento as string | number | Date) : null,
-              status: o.status ? Number(o.status) : null,
-            }
+              unidade_nome:  b.unidade_nome  as string | null,
+              unidade_sigla: b.unidade_sigla as string | null,
+              tipo: Number(b.tipo_picking) === 2 ? "DESEMBARQUE" as const : "EMBARQUE" as const,
+              data: b.data ? new Date(b.data as string | number | Date) : null,
+            },
           ])
         );
 
         divergenciasEnriquecidas = divergencias.map((item) => ({
           ...item,
           detalhe: detalheMap.get(item.codigo_barra) ?? null,
-          ocorrencia: ocorrenciasMap.get(item.codigo_barra) ?? null,
+          ultima_bipagem: bipagensMap.get(item.codigo_barra) ?? null,
         }));
       }
 

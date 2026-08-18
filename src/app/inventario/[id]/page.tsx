@@ -47,37 +47,24 @@ function StatusBadge({ status, cteZero }: { status: string; cteZero?: boolean })
   );
 }
 
-// ─── Tipo inferido do endpoint ─────────────────────────────────────────────
-type ItemEnriquecido = {
+// ─── Tipo do item bipado (simples, sem consulta legado) ────────────────────
+type ItemSimples = {
   id: string;
   inventario_id: string;
   codigo_barra: string;
   status_auditoria: string;
   criadoEm: Date;
-  detalhe: {
-    id_minuta: number | null;
-    id_manifesto: number | null;
-    prev_entrega: string | null;
-    origem_nome: string | null;
-    destino_nome: string | null;
-    minuta_status: number | null;
-    cte_zero: boolean;
-  } | null;
 };
 
-// ─── Linha da tabela ───────────────────────────────────────────────────────
-function ItemRow({ item, isNew, onRemover }: { item: ItemEnriquecido; isNew?: boolean; onRemover: (id: string) => void }) {
-  const cteZero = item.detalhe?.cte_zero === true;
+// ─── Linha da tabela (simples — sem consulta legado) ──────────────────────
+function ItemRow({ item, isNew, onRemover }: { item: ItemSimples; isNew?: boolean; onRemover: (id: string) => void }) {
   const isExtravio = item.status_auditoria === "POSSIVEL_EXTRAVIO";
-  const trota = item.detalhe?.destino_nome && item.detalhe?.origem_nome
-    ? `${item.detalhe.origem_nome} → ${item.detalhe.destino_nome}`
-    : item.detalhe?.destino_nome ?? item.detalhe?.origem_nome ?? "—";
 
   return (
     <tr
       className={[
         "border-b border-slate-100 transition-all duration-300",
-        isNew ? "bg-indigo-50/70" : cteZero ? "bg-slate-50/60 opacity-60" : isExtravio ? "bg-purple-50/40" : "hover:bg-slate-50/60",
+        isNew ? "bg-indigo-50/70" : isExtravio ? "bg-purple-50/40" : "hover:bg-slate-50/60",
       ].join(" ")}
     >
       {/* Código de Barras */}
@@ -85,10 +72,8 @@ function ItemRow({ item, isNew, onRemover }: { item: ItemEnriquecido; isNew?: bo
         <div className="flex items-center gap-3">
           <div
             className={[
-              "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs",
-              isExtravio
-                ? "bg-purple-100 text-purple-600"
-                : "bg-slate-100 text-slate-500",
+              "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+              isExtravio ? "bg-purple-100 text-purple-600" : "bg-slate-100 text-slate-500",
             ].join(" ")}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,47 +96,7 @@ function ItemRow({ item, isNew, onRemover }: { item: ItemEnriquecido; isNew?: bo
 
       {/* Status */}
       <td className="px-4 py-3 whitespace-nowrap">
-        <StatusBadge status={item.status_auditoria} cteZero={cteZero} />
-      </td>
-
-      {/* Minuta */}
-      <td className="px-4 py-3">
-        {item.detalhe?.id_minuta ? (
-          <span className="font-mono text-sm text-slate-700 font-medium">
-            {item.detalhe.id_minuta}
-          </span>
-        ) : (
-          <span className="text-slate-300 text-sm">—</span>
-        )}
-      </td>
-
-      {/* Manifesto */}
-      <td className="px-4 py-3">
-        {item.detalhe?.id_manifesto ? (
-          <span className="font-mono text-sm text-slate-700 font-medium">
-            {item.detalhe.id_manifesto}
-          </span>
-        ) : (
-          <span className="text-slate-300 text-sm">—</span>
-        )}
-      </td>
-
-      {/* Prev. Entrega */}
-      <td className="px-4 py-3 whitespace-nowrap">
-        {item.detalhe?.prev_entrega ? (
-          <span className="text-sm text-slate-700">
-            {formatDate(item.detalhe.prev_entrega)}
-          </span>
-        ) : (
-          <span className="text-slate-300 text-sm">—</span>
-        )}
-      </td>
-
-      {/* Rota Origem → Destino */}
-      <td className="px-4 py-3">
-        <span className="text-sm text-slate-600 leading-tight">
-          {trota}
-        </span>
+        <StatusBadge status={item.status_auditoria} />
       </td>
 
       {/* Remover */}
@@ -289,14 +234,11 @@ export default function InventarioPage() {
     }
   };
 
-  // ─── Contadores ────────────────────────────────────────────────────────────
-  // Exclui: POSSIVEL_EXTRAVIO e volumes com CTE = 0 (minuta sem CTE real)
-  const todosItens     = (itens ?? []) as ItemEnriquecido[];
-  const itensCteZero   = todosItens.filter((i) => i.detalhe?.cte_zero === true);
-  const itensValidos   = todosItens.filter((i) => i.status_auditoria !== "POSSIVEL_EXTRAVIO" && !i.detalhe?.cte_zero);
-  const itensExtravio  = todosItens.filter((i) => i.status_auditoria === "POSSIVEL_EXTRAVIO" && !i.detalhe?.cte_zero);
-  const itensCorretos  = itensValidos.filter((i) => i.status_auditoria === "ENCONTRADO_CORRETO");
-  const itensSobra     = itensValidos.filter((i) => i.status_auditoria === "SOBRA_NA_BASE");
+  // ─── Contadores (simples, só por status) ───────────────────────────────────
+  const todosItens    = (itens ?? []) as ItemSimples[];
+  const itensCorretos = todosItens.filter((i) => i.status_auditoria === "ENCONTRADO_CORRETO");
+  const itensSobra    = todosItens.filter((i) => i.status_auditoria === "SOBRA_NA_BASE");
+  const itensExtravio = todosItens.filter((i) => i.status_auditoria === "POSSIVEL_EXTRAVIO");
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
@@ -343,13 +285,12 @@ export default function InventarioPage() {
         </header>
 
         {/* ── Contadores resumo ── */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: "Registrados", value: itensValidos.length, color: "indigo", desc: "minuta ativa" },
+            { label: "Total Bipado", value: todosItens.length, color: "indigo", desc: "neste inventário" },
             { label: "Corretos", value: itensCorretos.length, color: "emerald", desc: "no local certo" },
             { label: "Sobras", value: itensSobra.length, color: "amber", desc: "não esperados" },
             { label: "Extravios?", value: itensExtravio.length, color: "purple", desc: "minuta finalizada" },
-            { label: "CTE = 0", value: itensCteZero.length, color: "slate", desc: "desconsiderados" },
           ].map((item) => (
             <div
               key={item.label}
@@ -450,10 +391,6 @@ export default function InventarioPage() {
                   <tr className="text-[10px] uppercase tracking-wider text-slate-400">
                     <th className="px-4 py-3 font-semibold">Código de Barras</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
-                    <th className="px-4 py-3 font-semibold">Minuta</th>
-                    <th className="px-4 py-3 font-semibold">Manifesto</th>
-                    <th className="px-4 py-3 font-semibold">Prev. Entrega</th>
-                    <th className="px-4 py-3 font-semibold">Rota</th>
                     <th className="px-4 py-3 font-semibold"></th>
                   </tr>
                 </thead>
