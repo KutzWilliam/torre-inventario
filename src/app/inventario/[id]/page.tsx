@@ -8,11 +8,6 @@ import Link from "next/link";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatDate(dateStr: string | null | undefined) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
 
 function StatusBadge({ status, cteZero }: { status: string; cteZero?: boolean }) {
   if (cteZero) {
@@ -360,10 +355,10 @@ export default function InventarioPage() {
         {/* ── Tabela de itens ── */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-            <h2 className="font-semibold text-slate-700">Últimos itens bipados</h2>
+            <h2 className="font-semibold text-slate-700">Volumes bipados neste inventário</h2>
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-slate-500 bg-slate-200 px-2.5 py-1 rounded-full">
-                {itensValidos.length} válidos
+                {todosItens.length} volume{todosItens.length !== 1 ? "s" : ""}
               </span>
               {itensExtravio.length > 0 && (
                 <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2.5 py-1 rounded-full">
