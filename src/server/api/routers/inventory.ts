@@ -429,6 +429,7 @@ export const inventoryRouter = createTRPCRouter({
         } | null;
         ultima_ocorrencia: {
           id_oco:       number | null;
+          descricao:    string | null;
           data_evento:  Date | null;
           status:       number | null;
         } | null;
@@ -512,9 +513,11 @@ export const inventoryRouter = createTRPCRouter({
               SELECT DISTINCT ON (p.id_minuta)
                 p.id_minuta,
                 p.id_oco,
+                t.descricao AS descricao,
                 p.data_evento,
                 p.status
               FROM processo p
+              LEFT JOIN tipo_oco t ON t.id_oco = p.id_oco
               WHERE p.id_minuta = ANY(${minutaIds})
                 AND p.id_oco > 0
               ORDER BY p.id_minuta, p.data_evento DESC
@@ -527,6 +530,7 @@ export const inventoryRouter = createTRPCRouter({
             Number(o.id_minuta),
             {
               id_oco:      o.id_oco ? Number(o.id_oco) : null,
+              descricao:   o.descricao ? String(o.descricao) : null,
               data_evento: o.data_evento ? new Date(o.data_evento as string | number | Date) : null,
               status:      o.status ? Number(o.status) : null,
             },

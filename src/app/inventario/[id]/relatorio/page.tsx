@@ -4,7 +4,6 @@ import { useParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
-import { getOcorrenciaDescricao } from "@/utils/ocorrencias";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -76,7 +75,7 @@ function UltimaBipagemBadge({ bipagem }: { bipagem: UltimaBipagem }) {
   );
 }
 
-function DivRow({ item }: { item: { id: string; codigo_barra: string; status_auditoria: string; criadoEm: Date; detalhe: Detalhe; ultima_bipagem?: UltimaBipagem; ultima_ocorrencia?: { id_oco: number | null; data_evento: Date | null; status: number | null } | null } }) {
+function DivRow({ item }: { item: { id: string; codigo_barra: string; status_auditoria: string; criadoEm: Date; detalhe: Detalhe; ultima_bipagem?: UltimaBipagem; ultima_ocorrencia?: { id_oco: number | null; descricao: string | null; data_evento: Date | null; status: number | null } | null } }) {
   const rota = item.detalhe?.destino_nome && item.detalhe?.origem_nome
     ? `${item.detalhe.origem_nome} -> ${item.detalhe.destino_nome}`
     : item.detalhe?.destino_nome ?? item.detalhe?.origem_nome ?? "—";
@@ -104,7 +103,7 @@ function DivRow({ item }: { item: { id: string; codigo_barra: string; status_aud
       <td className="px-4 py-3 whitespace-nowrap">
         {item.ultima_ocorrencia?.id_oco != null ? (
           <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1.5 rounded-lg border border-slate-200">
-            {getOcorrenciaDescricao(item.ultima_ocorrencia.id_oco)}
+            {item.ultima_ocorrencia.descricao ?? `Código ${item.ultima_ocorrencia.id_oco}`}
           </span>
         ) : (
           <span className="text-slate-300 text-sm">—</span>
@@ -223,7 +222,9 @@ export default function RelatorioInventarioPage() {
         "Última Bipagem": item.ultima_bipagem?.unidade_nome
           ? `${item.ultima_bipagem.tipo === "EMBARQUE" ? "Embarque" : "Desembarque"} - ${item.ultima_bipagem.unidade_nome}`
           : "—",
-        "Ocorrência": item.ultima_ocorrencia?.id_oco != null ? getOcorrenciaDescricao(item.ultima_ocorrencia.id_oco) : "—",
+        "Ocorrência": item.ultima_ocorrencia?.id_oco != null 
+          ? (item.ultima_ocorrencia.descricao ?? `Código ${item.ultima_ocorrencia.id_oco}`) 
+          : "—",
         "Minuta": item.detalhe?.id_minuta ?? "—",
         "Manifesto": item.detalhe?.id_manifesto ?? "—",
         "Prev. Entrega": formatDate(item.detalhe?.prev_entrega),
