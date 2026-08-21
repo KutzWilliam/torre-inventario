@@ -18,6 +18,17 @@ function StatusBadge({ status, cteZero }: { status: string; cteZero?: boolean })
       </span>
     );
   }
+  if (status === "CARREGANDO") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-200/60 whitespace-nowrap">
+        <svg className="animate-spin w-3 h-3 text-blue-500" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Carregando...
+      </span>
+    );
+  }
   if (status === "ENCONTRADO_CORRETO") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200/60 whitespace-nowrap">
@@ -168,10 +179,28 @@ export default function InventarioPage() {
   };
 
   const mutation = api.inventory.processarBipagemDiaria.useMutation({
+    onMutate: async (novoItem) => {
+      // Optimistic update
+      await trpcUtils.inventory.listarItensDoInventario.cancel({ inventarioId });
+      const previousItens = trpcUtils.inventory.listarItensDoInventario.getData({ inventarioId });
+      
+      if (previousItens) {
+        trpcUtils.inventory.listarItensDoInventario.setData({ inventarioId }, [
+          {
+            id: `temp-${Date.now()}`,
+            inventario_id: inventarioId,
+            codigo_barra: novoItem.codigoBarra,
+            status_auditoria: "CARREGANDO", // status temporário provisório
+            criadoEm: new Date(),
+          },
+          ...previousItens,
+        ]);
+      }
+      return { previousItens };
+    },
     onSuccess: (data) => {
-      setCodigo("");
-      inputRef.current?.focus();
-
+      void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
+      
       if (data.duplicado) {
         // Exibe aviso visual de duplicata por 3 segundos
         setDuplicado(true);
@@ -181,11 +210,14 @@ export default function InventarioPage() {
       }
 
       // Novo item — atualiza lista e destaca o item bipado
-      void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
       setLastScannedId(data.item.id);
       setDuplicado(false);
     },
-    onError: () => {
+    onError: (err, newItem, context) => {
+      // Reverte se der erro
+      if (context?.previousItens) {
+        trpcUtils.inventory.listarItensDoInventario.setData({ inventarioId }, context.previousItens);
+      }
       inputRef.current?.focus();
     },
   });
@@ -204,8 +236,9 @@ export default function InventarioPage() {
   }, [itens]);
 
   const submitCodigo = (value: string) => {
-    if (!value.trim() || mutation.isPending) return;
+    if (!value.trim()) return;
     mutation.mutate({ inventarioId, codigoBarra: value.trim() });
+    setCodigo(""); // Limpa imediatamente, não espera o backend
   };
 
   const handleSubmit = (e: FormEvent) => {
@@ -301,18 +334,10 @@ export default function InventarioPage() {
         {/* ── Input de bipagem ── */}
         <form onSubmit={handleSubmit} className="relative group">
           <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-            {mutation.isPending ? (
-              <svg className="animate-spin h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            ) : (
               <svg className="w-6 h-6 text-slate-400 group-focus-within:text-indigo-500 transition-colors"
                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-            )}
           </div>
           <input
             ref={inputRef}

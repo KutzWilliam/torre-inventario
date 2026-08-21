@@ -6,24 +6,6 @@ import { api } from "@/trpc/react";
 import Link from "next/link";
 
 // ─── Ícones inline ────────────────────────────────────────────────────────────
-const IconWarehouse = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-      d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-      d="M9 22V12h6v10" />
-  </svg>
-);
-
-const IconTruck = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-      d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-      d="M1 1h15v13H1V1zm15 5h4l3 3v5h-7V6z" />
-  </svg>
-);
-
 const IconBox = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -58,6 +40,24 @@ const IconSpin = () => (
   </svg>
 );
 
+const IconWarehouse = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M9 22V12h6v10" />
+  </svg>
+);
+
+const IconTruck = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M1 1h15v13H1V1zm15 5h4l3 3v5h-7V6z" />
+  </svg>
+);
+
 // ─── Modal de confirmação de novo inventário ──────────────────────────────────
 interface ModalNovoInventarioProps {
   unidade: { id_unidade: number; fantasia: string; sigla: string } | null;
@@ -70,59 +70,89 @@ function ModalNovoInventario({ unidade, onConfirm, onClose, isPending }: ModalNo
   if (!unidade) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      {/* Modal */}
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md p-8 animate-in fade-in zoom-in-95 duration-200">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
-        >
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
           <IconX />
         </button>
-
         <div className="flex items-center gap-4 mb-6">
           <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
             <IconBox />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-indigo-500 mb-0.5">
-              Novo Inventário
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-indigo-500 mb-0.5">Novo Inventário</p>
             <h2 className="text-xl font-bold text-slate-800">Confirmar Unidade</h2>
           </div>
         </div>
-
         <div className="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
           <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider font-medium">Unidade selecionada</p>
           <p className="text-lg font-bold text-slate-800">{unidade.fantasia}</p>
           <p className="text-sm text-slate-500 font-mono mt-0.5">{unidade.sigla} · ID {unidade.id_unidade}</p>
         </div>
-
         <p className="text-sm text-slate-500 mb-6">
-          Será iniciada uma nova sessão de contagem para esta unidade. Você poderá retomá-la a qualquer momento.
+          Será iniciada uma nova sessão de contagem para esta unidade.
         </p>
-
         <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={isPending}
-            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors disabled:opacity-50"
-          >
+          <button onClick={onClose} disabled={isPending} className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors disabled:opacity-50">
             Cancelar
           </button>
-          <button
-            onClick={() => onConfirm(unidade.id_unidade)}
-            disabled={isPending}
-            className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
+          <button onClick={() => onConfirm(unidade.id_unidade)} disabled={isPending} className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
             {isPending ? <IconSpin /> : <IconPlus />}
             {isPending ? "Criando..." : "Iniciar"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Componentes Gráficos ─────────────────────────────────────────────────────
+function SegmentedDonutChart({ 
+  segments, 
+  total, 
+  size = 140, 
+  strokeWidth = 14 
+}: { 
+  segments: { value: number, color: string }[], 
+  total: number, 
+  size?: number, 
+  strokeWidth?: number 
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+
+  let currentOffset = 0;
+
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="transform -rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="transparent" stroke="#f1f5f9" strokeWidth={strokeWidth} />
+        {segments.map((seg, idx) => {
+          if (seg.value === 0 || total === 0) return null;
+          const percent = seg.value / total;
+          const dash = percent * circumference;
+          const gap = circumference - dash;
+          const offset = currentOffset;
+          currentOffset -= dash;
+          
+          return (
+            <circle 
+              key={idx}
+              cx={size / 2} cy={size / 2} r={radius} 
+              fill="transparent" 
+              stroke={seg.color} 
+              strokeWidth={strokeWidth} 
+              strokeDasharray={`${dash} ${gap}`} 
+              strokeDashoffset={offset} 
+              strokeLinecap="butt"
+              className="transition-all duration-1000 ease-out" 
+            />
+          );
+        })}
+      </svg>
+      <div className="absolute flex flex-col items-center justify-center text-center">
+        <span className="text-3xl font-black text-slate-800 leading-none">{total}</span>
+        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mt-1">TOTAL</span>
       </div>
     </div>
   );
@@ -146,12 +176,10 @@ function UnidadeCard({ unidade, onIniciarInventario }: UnidadeCardProps) {
     ? Math.round((unidade.no_patio / unidade.total_volumes) * 100)
     : 0;
 
-  // Limpa o nome removendo prefixo "PRI " para exibição principal
   const nomeDisplay = unidade.fantasia.replace(/^PRI\s+/i, "");
 
   return (
     <div className="group bg-white rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-50 transition-all duration-300 overflow-hidden flex flex-col">
-      {/* Barra de progresso no topo */}
       <div className="h-1 bg-slate-100">
         <div
           className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700"
@@ -160,7 +188,6 @@ function UnidadeCard({ unidade, onIniciarInventario }: UnidadeCardProps) {
       </div>
 
       <div className="p-5 flex flex-col flex-1">
-        {/* Cabeçalho */}
         <div className="flex items-start justify-between mb-4">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-1">
@@ -176,21 +203,16 @@ function UnidadeCard({ unidade, onIniciarInventario }: UnidadeCardProps) {
           </div>
         </div>
 
-        {/* Métricas */}
         <div className="grid grid-cols-2 gap-3 mb-4 flex-1">
-          {/* No Pátio */}
           <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
             <div className="flex items-center gap-2 mb-1.5 text-emerald-600">
               <IconWarehouse />
               <span className="text-[10px] font-bold uppercase tracking-wider">No Pátio</span>
             </div>
             <p className="text-2xl font-black text-emerald-700">{unidade.no_patio}</p>
-            <p className="text-[10px] text-emerald-600/70 mt-0.5">
-              {porcentagemPatio}% do total
-            </p>
+            <p className="text-[10px] text-emerald-600/70 mt-0.5">{porcentagemPatio}% do total</p>
           </div>
 
-          {/* Em Viagem */}
           <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
             <div className="flex items-center gap-2 mb-1.5 text-amber-600">
               <IconTruck />
@@ -201,7 +223,6 @@ function UnidadeCard({ unidade, onIniciarInventario }: UnidadeCardProps) {
           </div>
         </div>
 
-        {/* Botão */}
         <button
           onClick={() => onIniciarInventario(unidade)}
           className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 text-white text-sm font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 group-hover:bg-indigo-600"
@@ -214,59 +235,26 @@ function UnidadeCard({ unidade, onIniciarInventario }: UnidadeCardProps) {
   );
 }
 
-// ─── Skeleton Card ────────────────────────────────────────────────────────────
-function UnidadeCardSkeleton() {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden animate-pulse">
-      <div className="h-1 bg-slate-100" />
-      <div className="p-5 space-y-4">
-        <div className="flex justify-between">
-          <div className="space-y-2">
-            <div className="h-2 w-20 bg-slate-100 rounded" />
-            <div className="h-4 w-36 bg-slate-100 rounded" />
-          </div>
-          <div className="w-14 h-14 bg-slate-100 rounded-xl" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="h-20 bg-slate-100 rounded-xl" />
-          <div className="h-20 bg-slate-100 rounded-xl" />
-        </div>
-        <div className="h-10 bg-slate-100 rounded-xl" />
-      </div>
-    </div>
-  );
-}
+
+// ─── Helper de Data ──────────────────────────────────────────────────────────
+const hojeStr = new Date().toISOString().split('T')[0];
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Home() {
   const router = useRouter();
   const [busca, setBusca] = useState("");
-  const [modalUnidade, setModalUnidade] = useState<{
-    id_unidade: number;
-    fantasia: string;
-    sigla: string;
-  } | null>(null);
+  // dataStr default is today YYYY-MM-DD
+  const [dataStr, setDataStr] = useState<string>(hojeStr!);
+  const [modalUnidade, setModalUnidade] = useState<{ id_unidade: number; fantasia: string; sigla: string } | null>(null);
 
-  // Dashboard de unidades com volumes ativos
-  const {
-    data: unidades,
-    isLoading: loadingUnidades,
-    error: errorUnidades,
-    refetch: refetchUnidades,
-  } = api.inventory.listarUnidadesComVolumes.useQuery(undefined, {
-    refetchInterval: 2 * 60 * 1000, // Atualiza a cada 2 minutos
-    staleTime: 60 * 1000,
+  // Queries
+  const { data: dashboard, isLoading: loadingDash } = api.inventory.obterDashboard.useQuery({ data: dataStr });
+  const { data: unidades, isLoading: loadingUnidades } = api.inventory.listarUnidadesComVolumes.useQuery(undefined, {
+    refetchInterval: 2 * 60 * 1000,
   });
 
-  // Lista de inventários recentes
-  const { data: inventarios, isLoading: loadingInventarios } =
-    api.inventory.listarInventarios.useQuery();
-
-  // Mutation para criar inventário
   const criarMutation = api.inventory.criarInventario.useMutation({
-    onSuccess: (data) => {
-      router.push(`/inventario/${data.id}`);
-    },
+    onSuccess: (data) => router.push(`/inventario/${data.id}`),
   });
 
   const handleConfirmarInventario = (unidadeId: number) => {
@@ -274,31 +262,15 @@ export default function Home() {
     criarMutation.mutate({ unidade_id: unidadeId });
   };
 
-  // Filtro de busca
-  const unidadesFiltradas = (unidades ?? []).filter((u) => {
-    if (!busca.trim()) return true;
-    const q = busca.toLowerCase();
-    return (
-      u.fantasia.toLowerCase().includes(q) ||
-      u.sigla.toLowerCase().includes(q) ||
-      String(u.id_unidade).includes(q)
-    );
-  });
-
-  // Totalizadores
-  const totais = (unidades ?? []).reduce(
-    (acc, u) => ({
-      unidades: acc.unidades + 1,
-      volumes: acc.volumes + u.total_volumes,
-      patio: acc.patio + u.no_patio,
-      viagem: acc.viagem + u.em_viagem,
-    }),
-    { unidades: 0, volumes: 0, patio: 0, viagem: 0 }
-  );
+  const unidadesAtivas = unidades?.length ?? 0;
+  
+  // Segmentos Donut
+  const concluidos = dashboard?.kpis.inventariosConcluidos ?? 0;
+  const emAndamento = dashboard?.kpis.inventariosEmAndamento ?? 0;
+  const naoIniciados = Math.max(0, unidadesAtivas - (concluidos + emAndamento));
 
   return (
     <>
-      {/* Modal */}
       {modalUnidade && (
         <ModalNovoInventario
           unidade={modalUnidade}
@@ -308,127 +280,294 @@ export default function Home() {
         />
       )}
 
-      <div className="min-h-screen text-slate-900 font-sans"
-        style={{ background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #f8fafc 100%)" }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
 
-          {/* ── Header ── */}
-          <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Header */}
+          <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <div className="flex items-center gap-3 mb-1">
-                <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-                  <IconBox />
-                  {/* Ícone branco */}
-                  <span className="sr-only">Torre Inventário</span>
-                </div>
-                <span className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-500">
-                  Torre de Controle
-                </span>
-              </div>
-              <h1 className="text-3xl font-black tracking-tight text-slate-900">
-                Painel de Unidades
-              </h1>
-              <p className="text-slate-500 mt-1 text-sm">
-                Volumes ativos nos últimos 90 dias · Atualização automática a cada 2 min
+              <p className="text-sm font-medium text-slate-500 mb-1">
+                {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Visão geral</h1>
+              <p className="text-slate-500 mt-1">Acompanhe o status dos inventários da sua operação.</p>
             </div>
-
-            <button
-              onClick={() => void refetchUnidades()}
-              className="self-start sm:self-auto inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Atualizar
-            </button>
+            <div className="flex items-center gap-3">
+              <Link href="/historico" className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg shadow-sm transition-colors border border-slate-200">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Ver histórico
+              </Link>
+              <button onClick={() => setModalUnidade({ id_unidade: 0, fantasia: "Selecionar na próxima tela", sigla: "..." })} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors">
+                <IconBox /> Novo inventário
+              </button>
+            </div>
           </header>
 
-          {/* ── Cards de totais ── */}
-          {!loadingUnidades && !errorUnidades && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: "Unidades Ativas", value: totais.unidades, color: "indigo", icon: "🏢" },
-                { label: "Volumes Totais", value: totais.volumes, color: "slate", icon: "📦" },
-                { label: "No Pátio", value: totais.patio, color: "emerald", icon: "🏭" },
-                { label: "Em Viagem", value: totais.viagem, color: "amber", icon: "🚛" },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm"
-                >
-                  <p className="text-2xl mb-1">{item.icon}</p>
-                  <p className="text-2xl font-black text-slate-800">{item.value.toLocaleString("pt-BR")}</p>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">{item.label}</p>
+          {/* KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* KPI 1 */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                 </div>
-              ))}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">Unidades monitoradas</p>
+                <p className="text-3xl font-bold text-slate-900">{unidades?.length ?? 0}</p>
+                <p className="text-xs text-slate-400 mt-1">{unidadesAtivas} ativas agora</p>
+              </div>
             </div>
-          )}
 
-          {/* ── Dashboard de unidades ── */}
-          <section className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-slate-800">
-                Unidades com Volumes Ativos
-                {!loadingUnidades && (
-                  <span className="ml-2 text-sm font-normal text-slate-400">
-                    ({unidadesFiltradas.length} unidades)
-                  </span>
-                )}
-              </h2>
-
-              {/* Busca */}
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  <IconSearch />
-                </span>
-                <input
-                  type="text"
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Buscar unidade..."
-                  className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all w-full sm:w-56"
+            {/* KPI 2 */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                </div>
+                <input 
+                  type="date"
+                  value={dataStr}
+                  onChange={(e) => setDataStr(e.target.value)}
+                  className="text-xs font-medium text-slate-500 bg-transparent border border-slate-200 rounded px-2 py-1 outline-none cursor-pointer hover:border-slate-300"
                 />
               </div>
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">Inventários no dia</p>
+                <p className="text-3xl font-bold text-slate-900">{loadingDash ? "..." : dashboard?.kpis.inventariosNoPeriodo}</p>
+                <p className="text-xs text-slate-400 mt-1">{loadingDash ? "..." : dashboard?.kpis.inventariosEmAndamento} em andamento</p>
+              </div>
             </div>
 
-            {/* Erro */}
-            {errorUnidades && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
-                <p className="text-red-600 font-medium">Erro ao carregar unidades</p>
-                <p className="text-red-400 text-sm mt-1">{errorUnidades.message}</p>
-                <button
-                  onClick={() => void refetchUnidades()}
-                  className="mt-3 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Tentar novamente
-                </button>
+            {/* KPI 3 */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-10 h-10 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </div>
               </div>
-            )}
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">Divergências no dia</p>
+                <p className="text-3xl font-bold text-slate-900">{loadingDash ? "..." : dashboard?.kpis.divergenciasAbertas}</p>
+                <p className="text-xs text-slate-400 mt-1">{loadingDash ? "..." : dashboard?.kpis.divergenciasCriticas} críticas</p>
+              </div>
+            </div>
 
-            {/* Grid de cards */}
+            {/* KPI 4 */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-500 flex items-center justify-center">
+                  <IconBox />
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">Itens conferidos</p>
+                <p className="text-3xl font-bold text-slate-900">{loadingDash ? "..." : dashboard?.kpis.itensConferidos.toLocaleString('pt-BR')}</p>
+                <p className="text-xs text-slate-400 mt-1">no dia selecionado</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Andamento e Pontos de Atenção */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Andamento dos inventários */}
+            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Andamento dos inventários</h2>
+                  <p className="text-sm text-slate-500">Distribuição por status para a data selecionada</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-10 sm:pl-4">
+                {loadingDash || loadingUnidades ? (
+                  <div className="w-[140px] h-[140px] rounded-full bg-slate-100 animate-pulse" />
+                ) : (
+                  <SegmentedDonutChart 
+                    total={unidadesAtivas}
+                    segments={[
+                      { value: concluidos, color: "#10b981" }, // Verde
+                      { value: emAndamento, color: "#3b82f6" }, // Azul
+                      { value: naoIniciados, color: "#cbd5e1" }, // Cinza
+                    ]}
+                  />
+                )}
+
+                <div className="flex-1 space-y-4 w-full">
+                  {/* Concluídos */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span className="text-sm font-medium text-slate-600">Concluídos</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-slate-900">{concluidos}</span>
+                      <span className="text-xs text-slate-400 w-10 text-right">
+                        {unidadesAtivas === 0 ? "0%" : `${Math.round((concluidos / unidadesAtivas) * 100)}%`}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Em andamento */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                      <span className="text-sm font-medium text-slate-600">Em andamento</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-slate-900">{emAndamento}</span>
+                      <span className="text-xs text-slate-400 w-10 text-right">
+                        {unidadesAtivas === 0 ? "0%" : `${Math.round((emAndamento / unidadesAtivas) * 100)}%`}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Não iniciados */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-slate-300" />
+                      <span className="text-sm font-medium text-slate-600">Não iniciados</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-slate-900">{naoIniciados}</span>
+                      <span className="text-xs text-slate-400 w-10 text-right">
+                        {unidadesAtivas === 0 ? "0%" : `${Math.round((naoIniciados / unidadesAtivas) * 100)}%`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pontos de atenção */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Pontos de atenção</h2>
+                  <p className="text-sm text-slate-500">Itens que precisam de acompanhamento</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 flex-1">
+                {/* Críticas */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Divergências críticas</p>
+                      <p className="text-xs text-slate-500">ocorrências acima do limite</p>
+                    </div>
+                  </div>
+                  <span className="font-bold text-slate-900">{loadingDash ? "..." : dashboard?.pontosAtencao.divergenciasCriticas}</span>
+                </div>
+
+                {/* Extraviados */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Itens extraviados</p>
+                      <p className="text-xs text-slate-500">itens sem localização</p>
+                    </div>
+                  </div>
+                  <span className="font-bold text-slate-900">{loadingDash ? "..." : dashboard?.pontosAtencao.itensExtraviados}</span>
+                </div>
+
+                {/* Atrasados */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Inventários atrasados</p>
+                      <p className="text-xs text-slate-500">sem atualização {'>'} 24h</p>
+                    </div>
+                  </div>
+                  <span className="font-bold text-slate-900">{loadingDash ? "..." : dashboard?.pontosAtencao.inventariosAtrasados}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Atividade e Gráfico */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Atividade recente */}
+            <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+              <h2 className="text-lg font-bold text-slate-900 mb-6">Atividade recente</h2>
+              <div className="space-y-6">
+                {loadingDash ? (
+                  <div className="text-sm text-slate-400">Carregando...</div>
+                ) : dashboard?.atividadeRecente.length === 0 ? (
+                  <div className="text-sm text-slate-400">Nenhuma atividade registrada.</div>
+                ) : (
+                  dashboard?.atividadeRecente.map((atv, idx) => (
+                    <div key={idx} className="flex gap-4">
+                      <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-slate-400">
+                        {atv.status === "CONCLUIDO" ? (
+                          <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        ) : (
+                          <IconBox />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {atv.status === "CONCLUIDO" ? "Inventário concluído" : "Inventário iniciado"}
+                        </p>
+                        <p className="text-xs text-slate-500">Unidade {atv.unidade_id} · {atv.itens} itens</p>
+                      </div>
+                      <span className="text-xs text-slate-400 whitespace-nowrap">
+                        {new Date(atv.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Resumo de conferência */}
+            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
+              <h2 className="text-lg font-bold text-slate-900">Resumo de conferência</h2>
+              <p className="text-sm text-slate-500 mb-8">Performance de acuracidade média mensal</p>
+
+              <div className="flex-1 flex items-end justify-between gap-2 h-48 mt-auto pt-6 border-b border-slate-100 relative">
+                {loadingDash ? (
+                  <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">Carregando dados...</div>
+                ) : (
+                  dashboard?.resumoConferencia.map((item, idx) => (
+                    <div key={idx} className="flex flex-col items-center gap-2 group w-full h-full justify-end relative">
+                      <div className="w-full max-w-[40px] bg-blue-500 rounded-t-sm transition-all relative overflow-hidden hover:bg-blue-600" style={{ height: `${item.taxa}%`, minHeight: '4px' }}>
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/10"></div>
+                      </div>
+                      <span className="text-xs font-medium text-slate-500 uppercase">{item.mes}</span>
+                      <div className="absolute -top-8 bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                        {item.taxa.toFixed(1)}%
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 4: Unidades em Cards (Layout Antigo) */}
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold text-slate-900">Unidades com Volumes Ativos</h2>
             {loadingUnidades ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <UnidadeCardSkeleton key={i} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="h-[250px] bg-white rounded-2xl border border-slate-100 animate-pulse" />
                 ))}
               </div>
-            ) : unidadesFiltradas.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
-                <div className="text-5xl mb-4">📭</div>
-                <h3 className="text-lg font-semibold text-slate-700 mb-1">
-                  {busca ? "Nenhuma unidade encontrada" : "Nenhum volume ativo"}
-                </h3>
-                <p className="text-slate-400 text-sm">
-                  {busca
-                    ? `Nenhuma unidade corresponde a "${busca}"`
-                    : "Não há volumes com minuta ativa nos últimos 90 dias."}
-                </p>
+            ) : unidades?.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400 text-sm">
+                Nenhum volume ativo.
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {unidadesFiltradas.map((unidade) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {unidades?.map((unidade) => (
                   <UnidadeCard
                     key={unidade.id_unidade}
                     unidade={unidade}
@@ -439,96 +578,114 @@ export default function Home() {
             )}
           </section>
 
-          {/* ── Histórico de inventários ── */}
-          <section className="space-y-4">
-            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              Histórico de Inventários
-            </h2>
+          {/* Row 5: Nova Tabela de Status dos Inventários */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Status dos Inventários</h2>
+                <p className="text-sm text-slate-500">Detalhamento para o dia {dataStr.split('-').reverse().join('/')}</p>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <IconSearch />
+                </span>
+                <input
+                  type="text"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar unidade..."
+                  className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-full transition-all"
+                />
+              </div>
+            </div>
 
-            {loadingInventarios ? (
-              <div className="grid grid-cols-1 gap-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="bg-white/50 animate-pulse h-20 rounded-2xl border border-slate-100" />
-                ))}
-              </div>
-            ) : inventarios?.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400 text-sm">
-                Nenhum inventário realizado ainda. Use os cards acima para iniciar.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3">
-                {inventarios?.map((inv) => (
-                  <div
-                    key={inv.id}
-                    className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-indigo-200 hover:shadow-sm transition-all"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="bg-indigo-50 text-indigo-600 rounded-xl px-3 py-2 text-center min-w-[60px]">
-                        <span className="text-[10px] font-bold uppercase tracking-wider block">Unidade</span>
-                        <span className="text-lg font-black">{inv.unidade_id}</span>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-mono text-xs text-slate-400">#{inv.id.slice(-6)}</span>
-                          {inv.status === "ABERTO" ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              Em andamento
-                            </span>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
+                    <th className="px-6 py-4">Unidade</th>
+                    <th className="px-6 py-4">Status no Dia</th>
+                    <th className="px-6 py-4 text-center">Esperado (Pátio)</th>
+                    <th className="px-6 py-4 text-center">Bipados</th>
+                    <th className="px-6 py-4 text-center">Corretos</th>
+                    <th className="px-6 py-4 text-center text-orange-600">Divergências</th>
+                    <th className="px-6 py-4 text-center text-red-600">Extravios</th>
+                    <th className="px-6 py-4 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {loadingUnidades || loadingDash ? (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-8 text-center text-slate-400 animate-pulse">Carregando dados...</td>
+                    </tr>
+                  ) : (
+                    (unidades ?? []).filter(u => 
+                      !busca.trim() || 
+                      u.fantasia.toLowerCase().includes(busca.toLowerCase()) || 
+                      u.sigla.toLowerCase().includes(busca.toLowerCase()) || 
+                      String(u.id_unidade).includes(busca)
+                    ).map((u) => {
+                      const inv = dashboard?.inventariosDoDia?.find(i => i.unidade_id === u.id_unidade);
+                      
+                      return (
+                        <tr key={u.id_unidade} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-slate-900">{u.fantasia.replace(/^PRI\s+/i, "")}</p>
+                            <p className="text-xs text-slate-500">{u.sigla}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            {!inv ? (
+                              dataStr === hojeStr ? (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-600">Não Iniciado</span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-400">Sem Histórico</span>
+                              )
+                            ) : inv.status === "EM_ANDAMENTO" || inv.status === "ABERTO" ? (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-700">Em Andamento</span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700">Concluído</span>
+                            )}
+                          </td>
+                          
+                          <td className="px-6 py-4 text-center font-medium text-slate-700">{u.no_patio}</td>
+                          
+                          {inv ? (
+                            <>
+                              <td className="px-6 py-4 text-center font-medium text-slate-700">{inv.bipados}</td>
+                              <td className="px-6 py-4 text-center font-medium text-emerald-600">{inv.corretos}</td>
+                              <td className="px-6 py-4 text-center font-medium text-orange-600">{inv.divergentes}</td>
+                              <td className="px-6 py-4 text-center font-medium text-red-600">{inv.extravios}</td>
+                            </>
                           ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500">
-                              Concluído
-                            </span>
+                            <>
+                              <td className="px-6 py-4 text-center text-slate-400">-</td>
+                              <td className="px-6 py-4 text-center text-slate-400">-</td>
+                              <td className="px-6 py-4 text-center text-slate-400">-</td>
+                              <td className="px-6 py-4 text-center text-slate-400">-</td>
+                            </>
                           )}
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500">
-                          <span>
-                            {new Date(inv.criadoEm).toLocaleDateString("pt-BR", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </span>
-                          <span className="font-medium text-slate-700">
-                            {inv._count.itens} itens
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex-shrink-0">
-                      {inv.status === "ABERTO" ? (
-                        <Link
-                          href={`/inventario/${inv.id}`}
-                          className="inline-flex items-center justify-center px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors border border-emerald-200"
-                        >
-                          Retomar Bipagem
-                          <svg className="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </Link>
-                      ) : (
-                        <Link
-                          href={`/inventario/${inv.id}/relatorio`}
-                          className="inline-flex items-center justify-center px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-xl transition-colors border border-slate-200"
-                        >
-                          Ver Relatório
-                          <svg className="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+                          
+                          <td className="px-6 py-4 text-right">
+                            {inv ? (
+                              <Link href={inv.status === "ABERTO" ? `/inventario/${inv.id}` : `/inventario/${inv.id}/relatorio`} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                                Abrir ↗
+                              </Link>
+                            ) : dataStr === hojeStr ? (
+                              <button onClick={() => setModalUnidade(u)} className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+                                Iniciar +
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400">N/D</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
         </div>
       </div>

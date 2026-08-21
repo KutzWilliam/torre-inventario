@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { dbReadonly } from "@/server/db-readonly";
 import { TRPCError } from "@trpc/server";
@@ -11,7 +12,7 @@ export const inventoryRouter = createTRPCRouter({
   // em_viagem  → última bipagem = embarque (picking.tipo=1) + manifesto em rota
   //              exibidos na unidade de DESTINO
   // ---------------------------------------------------------------------------
-  listarUnidadesComVolumes: publicProcedure.query(async () => {
+  listarUnidadesComVolumes: publicProcedure.query(async ({ ctx }) => {
     const rows = await dbReadonly`
       -- Obtém o ÚLTIMO movimento real de cada barra (mesmo critério do fecharInventario)
       -- para garantir que os números do painel coincidam com os do relatório.
@@ -50,14 +51,47 @@ export const inventoryRouter = createTRPCRouter({
       ORDER BY COUNT(*) DESC
     `;
 
-    return rows.map((r) => ({
+    const unidades = rows.map((r) => ({
       id_unidade:    Number(r.id_unidade),
       fantasia:      r.fantasia as string,
       sigla:         r.sigla as string,
       total_volumes: Number(r.total_volumes),
       no_patio:      Number(r.no_patio),
       em_viagem:     Number(r.em_viagem),
+      itens_bipados: 0, // Placeholder, será preenchido abaixo
+      status_inventario: "AGUARDANDO",
     }));
+
+    // Buscar os inventários mais recentes de cada unidade
+    const inventariosDb = await ctx.db.inventario.findMany({
+      where: {
+        unidade_id: { in: unidades.map(u => u.id_unidade) }
+      },
+      orderBy: { criadoEm: 'desc' },
+      include: {
+        _count: {
+          select: { itens: true }
+        }
+      }
+    });
+
+    // Pega só o inventário mais recente por unidade
+    const ultimosInventarios = new Map<number, typeof inventariosDb[0]>();
+    for (const inv of inventariosDb) {
+      if (!ultimosInventarios.has(inv.unidade_id)) {
+        ultimosInventarios.set(inv.unidade_id, inv);
+      }
+    }
+
+    // Preenche os dados de progresso e status
+    return unidades.map(u => {
+      const inv = ultimosInventarios.get(u.id_unidade);
+      if (inv) {
+        u.status_inventario = inv.status === "ABERTO" ? "EM_ANDAMENTO" : "CONCLUIDO";
+        u.itens_bipados = inv._count.itens;
+      }
+      return u;
+    });
   }),
 
   // -------------------------------------------------------------------------
@@ -81,6 +115,24 @@ export const inventoryRouter = createTRPCRouter({
         sigla:      rows[0].sigla as string,
       };
     }),
+
+  // -------------------------------------------------------------------------
+  // listarUnidadesSimples
+  // Retorna a lista completa de unidades ativas para uso em filtros (ex: Histórico).
+  // -------------------------------------------------------------------------
+  listarUnidadesSimples: publicProcedure.query(async () => {
+    const rows = await dbReadonly`
+      SELECT id_unidade, fantasia, sigla 
+      FROM unidades 
+      WHERE status = 1 
+      ORDER BY fantasia ASC
+    `;
+    return rows.map(r => ({
+      id: Number(r.id_unidade),
+      fantasia: r.fantasia as string,
+      sigla: r.sigla as string,
+    }));
+  }),
 
   processarBipagemDiaria: publicProcedure
     .input(
@@ -556,6 +608,225 @@ export const inventoryRouter = createTRPCRouter({
           totalProcessado: corretos + sobras + faltantes + extravios,
         },
         divergencias: divergenciasEnriquecidas,
+      };
+    }),
+
+  obterDashboard: publicProcedure
+    .input(z.object({ data: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      // 1. Calcular a data (Hoje por padrão ou a data enviada no input YYYY-MM-DD)
+      const hoje = new Date();
+      let inicioDia = new Date(hoje.setHours(0, 0, 0, 0));
+      let fimDia = new Date(hoje.setHours(23, 59, 59, 999));
+
+      if (input.data) {
+        const [ano, mes, dia] = input.data.split('-').map(Number) as [number, number, number];
+        inicioDia = new Date(ano, mes - 1, dia, 0, 0, 0, 0);
+        fimDia = new Date(ano, mes - 1, dia, 23, 59, 59, 999);
+      }
+
+      // 2. Buscar Inventários exatamente naquele dia
+      const inventariosDb = await ctx.db.inventario.findMany({
+        where: { 
+          criadoEm: { gte: inicioDia, lte: fimDia }
+        },
+        include: {
+          itens: { select: { status_auditoria: true, codigo_barra: true } },
+          _count: { select: { itens: true } }
+        },
+        orderBy: { criadoEm: "desc" }
+      });
+
+      // 3. Unidades com volumes ativos (do painel atual)
+      // Como o listarUnidadesComVolumes faz um agrupamento direto no banco legado, 
+      // podemos apenas buscar o total de registros do DB Prisma para unidades_ativas
+      // Para manter coerência e não atrasar, pegaremos o número de inventários únicos realizados no período:
+
+      // 3. Métricas base
+      const inventariosEmAndamento = inventariosDb.filter(inv => inv.status === "ABERTO").length;
+      const inventariosConcluidos = inventariosDb.filter(inv => inv.status === "CONCLUIDO").length;
+      const inventariosNoPeriodo = inventariosDb.length;
+      
+      let totalItensConferidos = 0;
+      let divergenciasCriticas = 0;
+      let itensExtraviados = 0;
+      let divergenciasAbertas = 0;
+
+      const inventariosDoDia = [];
+
+      for (const inv of inventariosDb) {
+        totalItensConferidos += inv._count.itens;
+        let divergenciasDoInv = 0;
+        let corretosDoInv = 0;
+        let extraviosDoInv = 0;
+
+        for (const item of inv.itens) {
+          if (item.status_auditoria !== "ENCONTRADO_CORRETO") divergenciasDoInv++;
+          else corretosDoInv++;
+
+          if (item.status_auditoria === "POSSIVEL_EXTRAVIO") {
+            itensExtraviados++;
+            extraviosDoInv++;
+          }
+        }
+
+        if (divergenciasDoInv > 0) divergenciasAbertas++;
+        if (divergenciasDoInv > 50) divergenciasCriticas++; 
+
+        inventariosDoDia.push({
+          id: inv.id,
+          unidade_id: inv.unidade_id,
+          status: inv.status,
+          bipados: inv._count.itens,
+          corretos: corretosDoInv,
+          divergentes: divergenciasDoInv,
+          extravios: extraviosDoInv,
+        });
+      }
+
+      // 5. Inventários Atrasados (Abertos há mais de 24h)
+      const dataOntem = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const inventariosAtrasados = inventariosDb.filter(inv => inv.status === "ABERTO" && inv.criadoEm < dataOntem).length;
+
+      // 6. Atividade Recente
+      const atividadeRecente = inventariosDb.slice(0, 5).map(inv => ({
+        id: inv.id,
+        unidade_id: inv.unidade_id,
+        status: inv.status,
+        criadoEm: inv.criadoEm,
+        itens: inv._count.itens,
+      }));
+
+      // 7. Resumo de Conferência (Taxa de Acuracidade por mês, histórico de 6 meses)
+      const seisMesesAtras = new Date();
+      seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 5);
+      seisMesesAtras.setDate(1);
+      seisMesesAtras.setHours(0,0,0,0);
+
+      const invHistoricos = await ctx.db.inventario.findMany({
+        where: { criadoEm: { gte: seisMesesAtras } },
+        include: { itens: { select: { status_auditoria: true } } }
+      });
+
+      const mesesMap = new Map<string, { total: number, corretos: number }>();
+      
+      for (const inv of invHistoricos) {
+        const m = inv.criadoEm.toLocaleString('pt-BR', { month: 'short' });
+        const obj = mesesMap.get(m) ?? { total: 0, corretos: 0 };
+        
+        obj.total += inv.itens.length;
+        obj.corretos += inv.itens.filter(i => i.status_auditoria === "ENCONTRADO_CORRETO").length;
+        mesesMap.set(m, obj);
+      }
+
+      const resumoConferencia = Array.from(mesesMap.entries()).map(([mes, dados]) => ({
+        mes,
+        taxa: dados.total > 0 ? (dados.corretos / dados.total) * 100 : 0
+      }));
+
+      // 8. Unidades ativas agora (Para o KPI card: pegamos as únicas do banco legado)
+      // Como não podemos juntar consultas tão facilmente e não queremos lentidão, passaremos "0" e faremos 
+      // que o frontend utilize `listarUnidadesComVolumes` para somar a 'ativasAgora'.
+
+      return {
+        kpis: {
+          inventariosNoPeriodo,
+          inventariosEmAndamento,
+          inventariosConcluidos,
+          divergenciasAbertas,
+          divergenciasCriticas,
+          itensConferidos: totalItensConferidos,
+        },
+        pontosAtencao: {
+          divergenciasCriticas,
+          itensExtraviados,
+          inventariosAtrasados
+        },
+        atividadeRecente,
+        resumoConferencia,
+        inventariosDoDia
+      };
+    }),
+
+  // -------------------------------------------------------------------------
+  // listarHistorico
+  // Busca inventários passados com filtros e paginação
+  // -------------------------------------------------------------------------
+  listarHistorico: publicProcedure
+    .input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      unidade_id: z.number().optional(),
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(100).default(20),
+    }))
+    .query(async ({ ctx, input }) => {
+      const where: {
+        unidade_id?: number;
+        criadoEm?: {
+          gte?: Date;
+          lte?: Date;
+        };
+      } = {};
+      
+      if (input.unidade_id) {
+        where.unidade_id = input.unidade_id;
+      }
+
+      if (input.dataInicio || input.dataFim) {
+        where.criadoEm = {};
+        if (input.dataInicio) {
+          const [ano, mes, dia] = input.dataInicio.split('-').map(Number) as [number, number, number];
+          where.criadoEm.gte = new Date(ano, mes - 1, dia, 0, 0, 0, 0);
+        }
+        if (input.dataFim) {
+          const [ano, mes, dia] = input.dataFim.split('-').map(Number) as [number, number, number];
+          where.criadoEm.lte = new Date(ano, mes - 1, dia, 23, 59, 59, 999);
+        }
+      }
+
+      const totalCount = await ctx.db.inventario.count({ where });
+
+      const inventariosDb = await ctx.db.inventario.findMany({
+        where,
+        orderBy: { criadoEm: 'desc' },
+        skip: (input.page - 1) * input.pageSize,
+        take: input.pageSize,
+        include: {
+          itens: { select: { status_auditoria: true } },
+          _count: { select: { itens: true } }
+        }
+      });
+
+      const items = inventariosDb.map(inv => {
+        let corretos = 0;
+        let divergentes = 0;
+        let extravios = 0;
+
+        for (const item of inv.itens) {
+          if (item.status_auditoria === "ENCONTRADO_CORRETO") corretos++;
+          else divergentes++;
+          if (item.status_auditoria === "POSSIVEL_EXTRAVIO") extravios++;
+        }
+
+        return {
+          id: inv.id,
+          unidade_id: inv.unidade_id,
+          status: inv.status,
+          criadoEm: inv.criadoEm,
+          atualizadoEm: inv.atualizadoEm,
+          bipados: inv._count.itens,
+          corretos,
+          divergentes,
+          extravios,
+        };
+      });
+
+      return {
+        items,
+        totalCount,
+        totalPages: Math.ceil(totalCount / input.pageSize),
+        currentPage: input.page
       };
     }),
 });

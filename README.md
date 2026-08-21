@@ -7,15 +7,17 @@ Sua função principal é comparar a realidade física (volumes bipados/escanead
 - **Sobras na Base:** Volumes que foram encontrados no pátio, mas que teoricamente já haviam sido embarcados, entregues ou que pertencem a outra filial.
 - **Possíveis Extravios:** Volumes que foram bipados no galpão, mas que já constam no sistema como entregues ou extraviados em processos passados.
 
-O grande diferencial deste sistema é sua capacidade de interligar essas divergências em tempo real com as **tabelas de ocorrências e processos** do banco legado. Assim, ao final do inventário, a equipe tem um relatório enriquecido informando exatamente se um volume "faltante" não foi bipado porque já tem uma tratativa de "Extravio" ou "Em Rota", por exemplo.
+O grande diferencial deste sistema é sua capacidade de interligar essas divergências em tempo real com o histórico logístico (**tabelas frete_hist e tipo_oco**) do banco legado. Assim, ao final do inventário, a equipe tem um relatório enriquecido informando exatamente a **Última Bipagem** física do volume (se foi Embarque ou Desembarque) e a sua **Situação Atual** (ex: *Extravio*, *Avaria*, *Roubo*), justificando operativamente possíveis faltas.
 
 ## 🛠 Como Funciona
 
 1. **Dashboard (Visão Geral):** Lista todas as unidades operacionais com base no número de volumes "no pátio" e "em viagem".
 2. **Abertura de Inventário:** Um inventário é iniciado especificamente para uma Unidade.
-3. **Bipagem:** Utilizando coletores (via Guardião Android) ou teclado, os códigos de barras são inseridos. O sistema consulta imediatamente a última movimentação daquele volume e retorna na hora o status de auditoria (*Encontrado Correto*, *Sobra* ou *Possível Extravio*).
-4. **Fechamento e Relatório:** O gerente de pátio encerra o inventário. Neste milissegundo, o sistema puxa todos os volumes teóricos de 90 dias atrás até agora que estão como "desembarcados" na base. Subtrai-se o que foi bipado, e os que restam tornam-se os **Faltantes**.
-5. **Análise de Processos (SSW/Torre Legada):** No painel de relatório final e na exportação para Excel, o sistema busca na tabela `processo_volumes` qual foi a **Última Ocorrência** (ex: *AVARIA TOTAL, ROUBO*) atrelada ao volume, trazendo justificativas operacionais automaticamente.
+3. **Bipagem Contínua:** Utilizando coletores de código de barras ou leitores físicos acoplados, os códigos são inseridos de forma extremamente rápida (com sistema *debounce*). O sistema valida instantaneamente o status (*Encontrado Correto*, *Sobra* ou *Possível Extravio*).
+4. **Fechamento e Relatório:** O gerente de pátio encerra o inventário. Neste momento, o sistema puxa todos os volumes teóricos de 90 dias atrás até o presente que estão como "desembarcados" na base. Subtrai-se o que foi bipado fisicamente, e os restantes tornam-se os **Faltantes**.
+5. **Análise Logística Profunda:** No painel de relatório final e na exportação para Excel, o sistema busca em paralelo duas frentes no banco legado:
+   - **Última Bipagem:** Consulta as tabelas `historico_volume` e `picking` para revelar a última unidade em que o volume foi lido e o tipo de movimentação (Embarque ou Desembarque).
+   - **Situação Atual:** Cruza a tabela `frete_hist` (histórico por minuta) com a tabela de tipagem `tipo_oco` para trazer a situação do sistema mais recente associada àquela minuta (ex: *AVARIA TOTAL, RECUSA, ROUBO*).
 
 ## 🏗 Arquitetura
 
