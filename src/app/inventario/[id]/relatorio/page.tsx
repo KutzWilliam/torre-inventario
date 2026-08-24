@@ -102,9 +102,16 @@ function DivRow({ item }: { item: { id: string; codigo_barra: string; status_aud
       {/* Situação Atual */}
       <td className="px-4 py-3 whitespace-nowrap">
         {item.ultima_ocorrencia?.id_oco != null ? (
-          <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1.5 rounded-lg border border-slate-200">
-            {item.ultima_ocorrencia.descricao ?? `Código ${item.ultima_ocorrencia.id_oco}`}
-          </span>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded border border-slate-200 w-fit">
+              {item.ultima_ocorrencia.descricao ?? `Código ${item.ultima_ocorrencia.id_oco}`}
+            </span>
+            {item.ultima_ocorrencia.data_evento && (
+              <span className="text-[10px] text-slate-400 font-medium">
+                {new Date(item.ultima_ocorrencia.data_evento).toLocaleString("pt-BR")}
+              </span>
+            )}
+          </div>
         ) : (
           <span className="text-slate-300 text-sm">—</span>
         )}
@@ -149,6 +156,7 @@ function DivRow({ item }: { item: { id: string; codigo_barra: string; status_aud
 }
 
 // ─── Página ───────────────────────────────────────────────────────────────────
+import { useState, useMemo } from "react";
 export default function RelatorioInventarioPage() {
   const params = useParams();
   const inventarioId = typeof params.id === "string" ? params.id : "";
@@ -164,6 +172,26 @@ export default function RelatorioInventarioPage() {
     { unidade_id: unidadeId! },
     { enabled: !!unidadeId }
   );
+
+  const [filtroSituacao, setFiltroSituacao] = useState<string>("");
+
+  const divergenciasSeguras = data?.divergencias ?? [];
+
+  // Obter lista única de situações para o filtro
+  const situacoesUnicas = useMemo(() => {
+    const situacoes = new Set<string>();
+    divergenciasSeguras.forEach(d => {
+      if (d.ultima_ocorrencia?.descricao) {
+        situacoes.add(d.ultima_ocorrencia.descricao);
+      }
+    });
+    return Array.from(situacoes).sort();
+  }, [divergenciasSeguras]);
+
+  const divergenciasFiltradas = useMemo(() => {
+    if (!filtroSituacao) return divergenciasSeguras;
+    return divergenciasSeguras.filter(d => d.ultima_ocorrencia?.descricao === filtroSituacao);
+  }, [divergenciasSeguras, filtroSituacao]);
 
   if (isLoading) {
     return (
@@ -196,17 +224,17 @@ export default function RelatorioInventarioPage() {
     );
   }
 
-  const { inventario, contadores, divergencias } = data;
+  const { inventario, contadores } = data;
 
   // Separar os grupos para exibição por seção
-  const faltantes  = divergencias.filter((d) => d.status_auditoria === "FALTANTE");
-  const sobras     = divergencias.filter((d) => d.status_auditoria === "SOBRA_NA_BASE");
-  const extravios  = divergencias.filter((d) => d.status_auditoria === "POSSIVEL_EXTRAVIO");
+  const faltantes  = divergenciasFiltradas.filter((d) => d.status_auditoria === "FALTANTE");
+  const sobras     = divergenciasFiltradas.filter((d) => d.status_auditoria === "SOBRA_NA_BASE");
+  const extravios  = divergenciasFiltradas.filter((d) => d.status_auditoria === "POSSIVEL_EXTRAVIO");
 
   const exportarParaExcel = () => {
-    if (!divergencias.length) return;
+    if (!divergenciasFiltradas.length) return;
 
-    const rows = divergencias.map(item => {
+    const rows = divergenciasFiltradas.map(item => {
       const rota = item.detalhe?.destino_nome && item.detalhe?.origem_nome
         ? `${item.detalhe.origem_nome} → ${item.detalhe.destino_nome}`
         : item.detalhe?.destino_nome ?? item.detalhe?.origem_nome ?? "—";
@@ -242,8 +270,8 @@ export default function RelatorioInventarioPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 p-6 sm:p-12 font-sans">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 lg:p-8 font-sans w-full">
+      <div className="w-full max-w-[1600px] mx-auto space-y-6 sm:space-y-8">
 
         {/* Cabeçalho */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200">
@@ -286,7 +314,7 @@ export default function RelatorioInventarioPage() {
             </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3 mt-4 sm:mt-0">
             <button
               onClick={exportarParaExcel}
               className="inline-flex items-center justify-center px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-xl transition-colors border border-emerald-200 shadow-sm"
@@ -378,19 +406,34 @@ export default function RelatorioInventarioPage() {
         </div>
 
         {/* Tabela de Divergências */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden w-full">
+          <div className="px-4 sm:px-6 py-5 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="font-semibold text-slate-800 text-lg">Detalhamento de Divergências</h2>
               <p className="text-sm text-slate-500 mt-0.5">Use esta lista para procuras físicas no galpão</p>
             </div>
-            <span className="text-sm font-medium text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm">
-              {divergencias.length} itens divergentes
-            </span>
+            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+              {situacoesUnicas.length > 0 && (
+                <select
+                  value={filtroSituacao}
+                  onChange={(e) => setFiltroSituacao(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 w-full sm:w-auto"
+                >
+                  <option value="">Todas as situações</option>
+                  {situacoesUnicas.map(sit => (
+                    <option key={sit} value={sit}>{sit}</option>
+                  ))}
+                </select>
+              )}
+              <span className="text-sm font-medium text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm whitespace-nowrap">
+                {divergenciasFiltradas.length} itens divergentes
+              </span>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            {divergencias.length === 0 ? (
+          <div className="overflow-x-auto w-full">
+            {divergenciasFiltradas.length === 0 ? (
               <div className="p-16 text-center">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 mb-4">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
