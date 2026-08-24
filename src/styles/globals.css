@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  /* Princesa dos Campos brand colors */
+  --color-brand-green:        #00cc00;
+  --color-brand-green-hover:  #00aa00;
+  --color-brand-dark:         #134e0c;
+  --color-brand-medium:       #16a34a;
+  --color-brand-light:        #dcfce7;
+  --color-brand-surface:      #f0fdf4;
 }

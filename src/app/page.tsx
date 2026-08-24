@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import Link from "next/link";
+import Image from "next/image";
 
 // ─── Ícones inline ────────────────────────────────────────────────────────────
 const IconBox = () => (
@@ -76,16 +77,16 @@ function ModalNovoInventario({ unidade, onConfirm, onClose, isPending }: ModalNo
           <IconX />
         </button>
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+          <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center text-green-700">
             <IconBox />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-indigo-500 mb-0.5">Novo Inventário</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-700 mb-0.5">Novo Inventário</p>
             <h2 className="text-xl font-bold text-slate-800">Confirmar Unidade</h2>
           </div>
         </div>
-        <div className="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
-          <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider font-medium">Unidade selecionada</p>
+        <div className="bg-green-50 rounded-2xl p-4 mb-6 border border-green-100">
+          <p className="text-xs text-green-700 mb-1 uppercase tracking-wider font-medium">Unidade selecionada</p>
           <p className="text-lg font-bold text-slate-800">{unidade.fantasia}</p>
           <p className="text-sm text-slate-500 font-mono mt-0.5">{unidade.sigla} · ID {unidade.id_unidade}</p>
         </div>
@@ -96,7 +97,7 @@ function ModalNovoInventario({ unidade, onConfirm, onClose, isPending }: ModalNo
           <button onClick={onClose} disabled={isPending} className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors disabled:opacity-50">
             Cancelar
           </button>
-          <button onClick={() => onConfirm(unidade.id_unidade)} disabled={isPending} className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+          <button onClick={() => onConfirm(unidade.id_unidade)} disabled={isPending} className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
             {isPending ? <IconSpin /> : <IconPlus />}
             {isPending ? "Criando..." : "Iniciar"}
           </button>
@@ -179,10 +180,10 @@ function UnidadeCard({ unidade, onIniciarInventario }: UnidadeCardProps) {
   const nomeDisplay = unidade.fantasia.replace(/^PRI\s+/i, "");
 
   return (
-    <div className="group bg-white rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-50 transition-all duration-300 overflow-hidden flex flex-col">
+    <div className="group bg-white rounded-2xl border border-slate-200 hover:border-green-400 hover:shadow-lg hover:shadow-green-50 transition-all duration-300 overflow-hidden flex flex-col">
       <div className="h-1 bg-slate-100">
         <div
-          className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700"
+          className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-700"
           style={{ width: `${porcentagemPatio}%` }}
         />
       </div>
@@ -193,11 +194,11 @@ function UnidadeCard({ unidade, onIniciarInventario }: UnidadeCardProps) {
             <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-1">
               {unidade.sigla}
             </p>
-            <h3 className="text-base font-bold text-slate-800 leading-tight group-hover:text-indigo-700 transition-colors">
+            <h3 className="text-base font-bold text-slate-800 leading-tight group-hover:text-green-800 transition-colors">
               {nomeDisplay}
             </h3>
           </div>
-          <div className="flex-shrink-0 bg-indigo-50 text-indigo-600 rounded-xl px-3 py-1.5 text-center min-w-[52px]">
+          <div className="flex-shrink-0 bg-green-50 text-green-700 rounded-xl px-3 py-1.5 text-center min-w-[52px]">
             <p className="text-xl font-black leading-none">{unidade.total_volumes}</p>
             <p className="text-[9px] uppercase tracking-wider font-semibold mt-0.5">total</p>
           </div>
@@ -225,7 +226,7 @@ function UnidadeCard({ unidade, onIniciarInventario }: UnidadeCardProps) {
 
         <button
           onClick={() => onIniciarInventario(unidade)}
-          className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 text-white text-sm font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 group-hover:bg-indigo-600"
+          className="w-full py-2.5 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
         >
           <IconPlus />
           Iniciar Inventário
@@ -280,24 +281,28 @@ export default function Home() {
         />
       )}
 
-      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12">
+      <div className="min-h-screen bg-green-50/30 text-slate-900 font-sans pb-12">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
 
           {/* Header */}
           <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <p className="text-sm font-medium text-slate-500 mb-1">
-                {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-              </p>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Visão geral</h1>
-              <p className="text-slate-500 mt-1">Acompanhe o status dos inventários da sua operação.</p>
+            <div className="flex items-center gap-4">
+              {/* Logo Princesa dos Campos */}
+              <Image src="/logo1.jpg" alt="Princesa dos Campos" width={140} height={56} className="h-14 w-auto hidden sm:block" priority />
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-0.5">
+                  {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+                <h1 className="text-2xl font-bold tracking-tight text-green-900">Torre de Inventário</h1>
+                <p className="text-slate-500 text-sm mt-0.5">Gestão e controle de inventários da operação.</p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
-              <Link href="/historico" className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg shadow-sm transition-colors border border-slate-200">
+              <Link href="/historico" className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-green-50 text-green-800 font-medium rounded-lg shadow-sm transition-colors border border-green-200">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 Ver histórico
               </Link>
-              <button onClick={() => setModalUnidade({ id_unidade: 0, fantasia: "Selecionar na próxima tela", sigla: "..." })} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors">
+              <button onClick={() => setModalUnidade({ id_unidade: 0, fantasia: "Selecionar na próxima tela", sigla: "..." })} className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition-colors">
                 <IconBox /> Novo inventário
               </button>
             </div>
@@ -308,7 +313,7 @@ export default function Home() {
             {/* KPI 1 */}
             <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
-                <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg bg-green-50 text-green-700 flex items-center justify-center">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                 </div>
               </div>
@@ -386,8 +391,8 @@ export default function Home() {
                   <SegmentedDonutChart 
                     total={unidadesAtivas}
                     segments={[
-                      { value: concluidos, color: "#10b981" }, // Verde
-                      { value: emAndamento, color: "#3b82f6" }, // Azul
+                      { value: concluidos, color: "#16a34a" },   // Verde Princesa
+                      { value: emAndamento, color: "#00cc00" },  // Verde vibrante Princesa
                       { value: naoIniciados, color: "#cbd5e1" }, // Cinza
                     ]}
                   />
@@ -410,7 +415,7 @@ export default function Home() {
                   {/* Em andamento */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
                       <span className="text-sm font-medium text-slate-600">Em andamento</span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -538,7 +543,7 @@ export default function Home() {
                 ) : (
                   dashboard?.resumoConferencia.map((item, idx) => (
                     <div key={idx} className="flex flex-col items-center gap-2 group w-full h-full justify-end relative">
-                      <div className="w-full max-w-[40px] bg-blue-500 rounded-t-sm transition-all relative overflow-hidden hover:bg-blue-600" style={{ height: `${item.taxa}%`, minHeight: '4px' }}>
+                      <div className="w-full max-w-[40px] bg-green-600 rounded-t-sm transition-all relative overflow-hidden hover:bg-green-700" style={{ height: `${item.taxa}%`, minHeight: '4px' }}>
                         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/10"></div>
                       </div>
                       <span className="text-xs font-medium text-slate-500 uppercase">{item.mes}</span>
@@ -594,7 +599,7 @@ export default function Home() {
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Buscar unidade..."
-                  className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-full transition-all"
+                  className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 w-full transition-all"
                 />
               </div>
             </div>
@@ -641,7 +646,7 @@ export default function Home() {
                                 <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-400">Sem Histórico</span>
                               )
                             ) : inv.status === "EM_ANDAMENTO" || inv.status === "ABERTO" ? (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-700">Em Andamento</span>
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-green-100 text-green-800">Em Andamento</span>
                             ) : (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700">Concluído</span>
                             )}
@@ -667,11 +672,11 @@ export default function Home() {
                           
                           <td className="px-6 py-4 text-right">
                             {inv ? (
-                              <Link href={inv.status === "ABERTO" ? `/inventario/${inv.id}` : `/inventario/${inv.id}/relatorio`} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                              <Link href={inv.status === "ABERTO" ? `/inventario/${inv.id}` : `/inventario/${inv.id}/relatorio`} className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors">
                                 Abrir ↗
                               </Link>
                             ) : dataStr === hojeStr ? (
-                              <button onClick={() => setModalUnidade(u)} className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+                              <button onClick={() => setModalUnidade(u)} className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors">
                                 Iniciar +
                               </button>
                             ) : (

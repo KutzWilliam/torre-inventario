@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/trpc/react";
 import Link from "next/link";
+import Image from "next/image";
 
 const IconSearch = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,15 +50,18 @@ export default function HistoricoPage() {
 
         {/* Header */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-indigo-600 transition-colors mb-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Voltar ao Dashboard
-            </Link>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Histórico de Inventários</h1>
-            <p className="text-slate-500 mt-1">Consulte o histórico detalhado de todas as contagens realizadas.</p>
+          <div className="flex items-center gap-4">
+            <Image src="/cropped-icon.png" alt="Princesa dos Campos" width={40} height={40} className="h-10 w-10" />
+            <div>
+              <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-green-700 transition-colors mb-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Voltar ao Dashboard
+              </Link>
+              <h1 className="text-3xl font-bold tracking-tight text-green-900">Histórico de Inventários</h1>
+              <p className="text-slate-500 mt-1">Consulte o histórico detalhado de todas as contagens realizadas.</p>
+            </div>
           </div>
         </header>
 
@@ -72,7 +76,7 @@ export default function HistoricoPage() {
               <select 
                 value={unidadeId} 
                 onChange={(e) => { setUnidadeId(e.target.value ? Number(e.target.value) : ""); setPage(1); }}
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none"
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 appearance-none"
               >
                 <option value="">Todas as unidades</option>
                 {unidades?.map(u => (
@@ -149,7 +153,7 @@ export default function HistoricoPage() {
                         </td>
                         <td className="px-6 py-4">
                           {inv.status === "EM_ANDAMENTO" || inv.status === "ABERTO" ? (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-700">Em Andamento</span>
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-green-100 text-green-800">Em Andamento</span>
                           ) : (
                             <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700">Concluído</span>
                           )}
@@ -159,7 +163,7 @@ export default function HistoricoPage() {
                         <td className="px-6 py-4 text-center font-medium text-orange-600">{inv.divergentes}</td>
                         <td className="px-6 py-4 text-center font-medium text-red-600">{inv.extravios}</td>
                         <td className="px-6 py-4 text-right">
-                          <Link href={inv.status === "ABERTO" ? `/inventario/${inv.id}` : `/inventario/${inv.id}/relatorio`} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                          <Link href={inv.status === "ABERTO" ? `/inventario/${inv.id}` : `/inventario/${inv.id}/relatorio`} className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors">
                             Abrir ↗
                           </Link>
                         </td>

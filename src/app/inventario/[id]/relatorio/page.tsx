@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
+import Image from "next/image";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -276,14 +277,15 @@ export default function RelatorioInventarioPage() {
         {/* Cabeçalho */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200">
           <div>
-            <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-indigo-600 transition-colors mb-3">
+            <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-green-700 transition-colors mb-3">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
               Painel de Unidades
             </Link>
             <div className="flex items-center gap-3 mb-2">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
+              <Image src="/cropped-icon.png" alt="Princesa" width={32} height={32} className="h-8 w-8" />
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
                 Relatório de Fechamento
               </span>
               {inventario.status === "CONCLUIDO" ? (
@@ -298,7 +300,7 @@ export default function RelatorioInventarioPage() {
                 </span>
               )}
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-800">
+            <h1 className="text-3xl font-bold tracking-tight text-green-900">
               {nomeUnidade ? nomeUnidade.fantasia : `Unidade ${inventario.unidade_id}`}
             </h1>
             {nomeUnidade && (
@@ -335,7 +337,7 @@ export default function RelatorioInventarioPage() {
             </button>
             <Link
               href="/"
-              className="inline-flex items-center justify-center px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium rounded-xl transition-colors border border-indigo-200"
+              className="inline-flex items-center justify-center px-4 py-2 bg-green-50 hover:bg-green-100 text-green-800 font-medium rounded-xl transition-colors border border-green-200"
             >
               Painel de Unidades
             </Link>
