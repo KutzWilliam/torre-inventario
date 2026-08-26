@@ -248,20 +248,10 @@ export default function Home() {
   const [dataStr, setDataStr] = useState<string>(hojeStr!);
   const [modalUnidade, setModalUnidade] = useState<{ id_unidade: number; fantasia: string; sigla: string } | null>(null);
 
-  // Queries
   const { data: dashboard, isLoading: loadingDash } = api.inventory.obterDashboard.useQuery({ data: dataStr });
   const { data: unidades, isLoading: loadingUnidades } = api.inventory.listarUnidadesComVolumes.useQuery(undefined, {
     refetchInterval: 2 * 60 * 1000,
   });
-
-  const criarMutation = api.inventory.criarInventario.useMutation({
-    onSuccess: (data) => router.push(`/inventario/${data.id}`),
-  });
-
-  const handleConfirmarInventario = (unidadeId: number) => {
-    if (criarMutation.isPending) return;
-    criarMutation.mutate({ unidade_id: unidadeId });
-  };
 
   const unidadesAtivas = unidades?.length ?? 0;
   
@@ -272,14 +262,6 @@ export default function Home() {
 
   return (
     <>
-      {modalUnidade && (
-        <ModalNovoInventario
-          unidade={modalUnidade}
-          onConfirm={handleConfirmarInventario}
-          onClose={() => setModalUnidade(null)}
-          isPending={criarMutation.isPending}
-        />
-      )}
 
       <div className="min-h-screen bg-green-50/30 text-slate-900 font-sans pb-12">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
@@ -302,9 +284,6 @@ export default function Home() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 Ver histórico
               </Link>
-              <button onClick={() => setModalUnidade({ id_unidade: 0, fantasia: "Selecionar na próxima tela", sigla: "..." })} className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition-colors">
-                <IconBox /> Novo inventário
-              </button>
             </div>
           </header>
 
@@ -576,7 +555,7 @@ export default function Home() {
                   <UnidadeCard
                     key={unidade.id_unidade}
                     unidade={unidade}
-                    onIniciarInventario={setModalUnidade}
+                    onIniciarInventario={() => router.push(`/unidade/${unidade.id_unidade}`)}
                   />
                 ))}
               </div>
@@ -671,17 +650,9 @@ export default function Home() {
                           )}
                           
                           <td className="px-6 py-4 text-right">
-                            {inv ? (
-                              <Link href={inv.status === "ABERTO" ? `/inventario/${inv.id}` : `/inventario/${inv.id}/relatorio`} className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors">
-                                Abrir ↗
-                              </Link>
-                            ) : dataStr === hojeStr ? (
-                              <button onClick={() => setModalUnidade(u)} className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors">
-                                Iniciar +
-                              </button>
-                            ) : (
-                              <span className="text-xs text-slate-400">N/D</span>
-                            )}
+                            <Link href={`/unidade/${u.id_unidade}`} className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors">
+                              {inv ? "Abrir Praças ↗" : "Iniciar Praças +"}
+                            </Link>
                           </td>
                         </tr>
                       )

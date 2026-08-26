@@ -1006,6 +1006,8 @@ export namespace Prisma {
     id: string | null
     data: Date | null
     unidade_id: number | null
+    praca: string | null
+    praca_label: string | null
     status: string | null
     criadoEm: Date | null
     atualizadoEm: Date | null
@@ -1015,6 +1017,8 @@ export namespace Prisma {
     id: string | null
     data: Date | null
     unidade_id: number | null
+    praca: string | null
+    praca_label: string | null
     status: string | null
     criadoEm: Date | null
     atualizadoEm: Date | null
@@ -1024,6 +1028,8 @@ export namespace Prisma {
     id: number
     data: number
     unidade_id: number
+    praca: number
+    praca_label: number
     status: number
     criadoEm: number
     atualizadoEm: number
@@ -1043,6 +1049,8 @@ export namespace Prisma {
     id?: true
     data?: true
     unidade_id?: true
+    praca?: true
+    praca_label?: true
     status?: true
     criadoEm?: true
     atualizadoEm?: true
@@ -1052,6 +1060,8 @@ export namespace Prisma {
     id?: true
     data?: true
     unidade_id?: true
+    praca?: true
+    praca_label?: true
     status?: true
     criadoEm?: true
     atualizadoEm?: true
@@ -1061,6 +1071,8 @@ export namespace Prisma {
     id?: true
     data?: true
     unidade_id?: true
+    praca?: true
+    praca_label?: true
     status?: true
     criadoEm?: true
     atualizadoEm?: true
@@ -1157,6 +1169,8 @@ export namespace Prisma {
     id: string
     data: Date
     unidade_id: number
+    praca: string | null
+    praca_label: string | null
     status: string
     criadoEm: Date
     atualizadoEm: Date
@@ -1185,6 +1199,8 @@ export namespace Prisma {
     id?: boolean
     data?: boolean
     unidade_id?: boolean
+    praca?: boolean
+    praca_label?: boolean
     status?: boolean
     criadoEm?: boolean
     atualizadoEm?: boolean
@@ -1196,6 +1212,8 @@ export namespace Prisma {
     id?: boolean
     data?: boolean
     unidade_id?: boolean
+    praca?: boolean
+    praca_label?: boolean
     status?: boolean
     criadoEm?: boolean
     atualizadoEm?: boolean
@@ -1205,6 +1223,8 @@ export namespace Prisma {
     id?: boolean
     data?: boolean
     unidade_id?: boolean
+    praca?: boolean
+    praca_label?: boolean
     status?: boolean
     criadoEm?: boolean
     atualizadoEm?: boolean
@@ -1214,12 +1234,14 @@ export namespace Prisma {
     id?: boolean
     data?: boolean
     unidade_id?: boolean
+    praca?: boolean
+    praca_label?: boolean
     status?: boolean
     criadoEm?: boolean
     atualizadoEm?: boolean
   }
 
-  export type InventarioOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "data" | "unidade_id" | "status" | "criadoEm" | "atualizadoEm", ExtArgs["result"]["inventario"]>
+  export type InventarioOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "data" | "unidade_id" | "praca" | "praca_label" | "status" | "criadoEm" | "atualizadoEm", ExtArgs["result"]["inventario"]>
   export type InventarioInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     itens?: boolean | Inventario$itensArgs<ExtArgs>
     _count?: boolean | InventarioCountOutputTypeDefaultArgs<ExtArgs>
@@ -1236,6 +1258,8 @@ export namespace Prisma {
       id: string
       data: Date
       unidade_id: number
+      praca: string | null
+      praca_label: string | null
       /**
        * "ABERTO" | "CONCLUIDO"
        */
@@ -1669,6 +1693,8 @@ export namespace Prisma {
     readonly id: FieldRef<"Inventario", 'String'>
     readonly data: FieldRef<"Inventario", 'DateTime'>
     readonly unidade_id: FieldRef<"Inventario", 'Int'>
+    readonly praca: FieldRef<"Inventario", 'String'>
+    readonly praca_label: FieldRef<"Inventario", 'String'>
     readonly status: FieldRef<"Inventario", 'String'>
     readonly criadoEm: FieldRef<"Inventario", 'DateTime'>
     readonly atualizadoEm: FieldRef<"Inventario", 'DateTime'>
@@ -3181,6 +3207,8 @@ export namespace Prisma {
     id: 'id',
     data: 'data',
     unidade_id: 'unidade_id',
+    praca: 'praca',
+    praca_label: 'praca_label',
     status: 'status',
     criadoEm: 'criadoEm',
     atualizadoEm: 'atualizadoEm'
@@ -3214,6 +3242,14 @@ export namespace Prisma {
   };
 
   export type QueryMode = (typeof QueryMode)[keyof typeof QueryMode]
+
+
+  export const NullsOrder: {
+    first: 'first',
+    last: 'last'
+  };
+
+  export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
 
 
   /**
@@ -3287,6 +3323,8 @@ export namespace Prisma {
     id?: StringFilter<"Inventario"> | string
     data?: DateTimeFilter<"Inventario"> | Date | string
     unidade_id?: IntFilter<"Inventario"> | number
+    praca?: StringNullableFilter<"Inventario"> | string | null
+    praca_label?: StringNullableFilter<"Inventario"> | string | null
     status?: StringFilter<"Inventario"> | string
     criadoEm?: DateTimeFilter<"Inventario"> | Date | string
     atualizadoEm?: DateTimeFilter<"Inventario"> | Date | string
@@ -3297,6 +3335,8 @@ export namespace Prisma {
     id?: SortOrder
     data?: SortOrder
     unidade_id?: SortOrder
+    praca?: SortOrderInput | SortOrder
+    praca_label?: SortOrderInput | SortOrder
     status?: SortOrder
     criadoEm?: SortOrder
     atualizadoEm?: SortOrder
@@ -3310,6 +3350,8 @@ export namespace Prisma {
     NOT?: InventarioWhereInput | InventarioWhereInput[]
     data?: DateTimeFilter<"Inventario"> | Date | string
     unidade_id?: IntFilter<"Inventario"> | number
+    praca?: StringNullableFilter<"Inventario"> | string | null
+    praca_label?: StringNullableFilter<"Inventario"> | string | null
     status?: StringFilter<"Inventario"> | string
     criadoEm?: DateTimeFilter<"Inventario"> | Date | string
     atualizadoEm?: DateTimeFilter<"Inventario"> | Date | string
@@ -3320,6 +3362,8 @@ export namespace Prisma {
     id?: SortOrder
     data?: SortOrder
     unidade_id?: SortOrder
+    praca?: SortOrderInput | SortOrder
+    praca_label?: SortOrderInput | SortOrder
     status?: SortOrder
     criadoEm?: SortOrder
     atualizadoEm?: SortOrder
@@ -3337,6 +3381,8 @@ export namespace Prisma {
     id?: StringWithAggregatesFilter<"Inventario"> | string
     data?: DateTimeWithAggregatesFilter<"Inventario"> | Date | string
     unidade_id?: IntWithAggregatesFilter<"Inventario"> | number
+    praca?: StringNullableWithAggregatesFilter<"Inventario"> | string | null
+    praca_label?: StringNullableWithAggregatesFilter<"Inventario"> | string | null
     status?: StringWithAggregatesFilter<"Inventario"> | string
     criadoEm?: DateTimeWithAggregatesFilter<"Inventario"> | Date | string
     atualizadoEm?: DateTimeWithAggregatesFilter<"Inventario"> | Date | string
@@ -3401,6 +3447,8 @@ export namespace Prisma {
     id?: string
     data?: Date | string
     unidade_id: number
+    praca?: string | null
+    praca_label?: string | null
     status?: string
     criadoEm?: Date | string
     atualizadoEm?: Date | string
@@ -3411,6 +3459,8 @@ export namespace Prisma {
     id?: string
     data?: Date | string
     unidade_id: number
+    praca?: string | null
+    praca_label?: string | null
     status?: string
     criadoEm?: Date | string
     atualizadoEm?: Date | string
@@ -3421,6 +3471,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     data?: DateTimeFieldUpdateOperationsInput | Date | string
     unidade_id?: IntFieldUpdateOperationsInput | number
+    praca?: NullableStringFieldUpdateOperationsInput | string | null
+    praca_label?: NullableStringFieldUpdateOperationsInput | string | null
     status?: StringFieldUpdateOperationsInput | string
     criadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
     atualizadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -3431,6 +3483,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     data?: DateTimeFieldUpdateOperationsInput | Date | string
     unidade_id?: IntFieldUpdateOperationsInput | number
+    praca?: NullableStringFieldUpdateOperationsInput | string | null
+    praca_label?: NullableStringFieldUpdateOperationsInput | string | null
     status?: StringFieldUpdateOperationsInput | string
     criadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
     atualizadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -3441,6 +3495,8 @@ export namespace Prisma {
     id?: string
     data?: Date | string
     unidade_id: number
+    praca?: string | null
+    praca_label?: string | null
     status?: string
     criadoEm?: Date | string
     atualizadoEm?: Date | string
@@ -3450,6 +3506,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     data?: DateTimeFieldUpdateOperationsInput | Date | string
     unidade_id?: IntFieldUpdateOperationsInput | number
+    praca?: NullableStringFieldUpdateOperationsInput | string | null
+    praca_label?: NullableStringFieldUpdateOperationsInput | string | null
     status?: StringFieldUpdateOperationsInput | string
     criadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
     atualizadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -3459,6 +3517,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     data?: DateTimeFieldUpdateOperationsInput | Date | string
     unidade_id?: IntFieldUpdateOperationsInput | number
+    praca?: NullableStringFieldUpdateOperationsInput | string | null
+    praca_label?: NullableStringFieldUpdateOperationsInput | string | null
     status?: StringFieldUpdateOperationsInput | string
     criadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
     atualizadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -3556,10 +3616,30 @@ export namespace Prisma {
     not?: NestedIntFilter<$PrismaModel> | number
   }
 
+  export type StringNullableFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    mode?: QueryMode
+    not?: NestedStringNullableFilter<$PrismaModel> | string | null
+  }
+
   export type ItemInventarioListRelationFilter = {
     every?: ItemInventarioWhereInput
     some?: ItemInventarioWhereInput
     none?: ItemInventarioWhereInput
+  }
+
+  export type SortOrderInput = {
+    sort: SortOrder
+    nulls?: NullsOrder
   }
 
   export type ItemInventarioOrderByRelationAggregateInput = {
@@ -3570,6 +3650,8 @@ export namespace Prisma {
     id?: SortOrder
     data?: SortOrder
     unidade_id?: SortOrder
+    praca?: SortOrder
+    praca_label?: SortOrder
     status?: SortOrder
     criadoEm?: SortOrder
     atualizadoEm?: SortOrder
@@ -3583,6 +3665,8 @@ export namespace Prisma {
     id?: SortOrder
     data?: SortOrder
     unidade_id?: SortOrder
+    praca?: SortOrder
+    praca_label?: SortOrder
     status?: SortOrder
     criadoEm?: SortOrder
     atualizadoEm?: SortOrder
@@ -3592,6 +3676,8 @@ export namespace Prisma {
     id?: SortOrder
     data?: SortOrder
     unidade_id?: SortOrder
+    praca?: SortOrder
+    praca_label?: SortOrder
     status?: SortOrder
     criadoEm?: SortOrder
     atualizadoEm?: SortOrder
@@ -3647,6 +3733,24 @@ export namespace Prisma {
     _sum?: NestedIntFilter<$PrismaModel>
     _min?: NestedIntFilter<$PrismaModel>
     _max?: NestedIntFilter<$PrismaModel>
+  }
+
+  export type StringNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    mode?: QueryMode
+    not?: NestedStringNullableWithAggregatesFilter<$PrismaModel> | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedStringNullableFilter<$PrismaModel>
+    _max?: NestedStringNullableFilter<$PrismaModel>
   }
 
   export type InventarioScalarRelationFilter = {
@@ -3706,6 +3810,10 @@ export namespace Prisma {
     decrement?: number
     multiply?: number
     divide?: number
+  }
+
+  export type NullableStringFieldUpdateOperationsInput = {
+    set?: string | null
   }
 
   export type ItemInventarioUpdateManyWithoutInventarioNestedInput = {
@@ -3786,6 +3894,20 @@ export namespace Prisma {
     not?: NestedIntFilter<$PrismaModel> | number
   }
 
+  export type NestedStringNullableFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    not?: NestedStringNullableFilter<$PrismaModel> | string | null
+  }
+
   export type NestedStringWithAggregatesFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel>
     in?: string[] | ListStringFieldRefInput<$PrismaModel>
@@ -3844,6 +3966,34 @@ export namespace Prisma {
     not?: NestedFloatFilter<$PrismaModel> | number
   }
 
+  export type NestedStringNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel> | null
+    in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    contains?: string | StringFieldRefInput<$PrismaModel>
+    startsWith?: string | StringFieldRefInput<$PrismaModel>
+    endsWith?: string | StringFieldRefInput<$PrismaModel>
+    not?: NestedStringNullableWithAggregatesFilter<$PrismaModel> | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedStringNullableFilter<$PrismaModel>
+    _max?: NestedStringNullableFilter<$PrismaModel>
+  }
+
+  export type NestedIntNullableFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableFilter<$PrismaModel> | number | null
+  }
+
   export type ItemInventarioCreateWithoutInventarioInput = {
     id?: string
     codigo_barra: string
@@ -3899,6 +4049,8 @@ export namespace Prisma {
     id?: string
     data?: Date | string
     unidade_id: number
+    praca?: string | null
+    praca_label?: string | null
     status?: string
     criadoEm?: Date | string
     atualizadoEm?: Date | string
@@ -3908,6 +4060,8 @@ export namespace Prisma {
     id?: string
     data?: Date | string
     unidade_id: number
+    praca?: string | null
+    praca_label?: string | null
     status?: string
     criadoEm?: Date | string
     atualizadoEm?: Date | string
@@ -3933,6 +4087,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     data?: DateTimeFieldUpdateOperationsInput | Date | string
     unidade_id?: IntFieldUpdateOperationsInput | number
+    praca?: NullableStringFieldUpdateOperationsInput | string | null
+    praca_label?: NullableStringFieldUpdateOperationsInput | string | null
     status?: StringFieldUpdateOperationsInput | string
     criadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
     atualizadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -3942,6 +4098,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     data?: DateTimeFieldUpdateOperationsInput | Date | string
     unidade_id?: IntFieldUpdateOperationsInput | number
+    praca?: NullableStringFieldUpdateOperationsInput | string | null
+    praca_label?: NullableStringFieldUpdateOperationsInput | string | null
     status?: StringFieldUpdateOperationsInput | string
     criadoEm?: DateTimeFieldUpdateOperationsInput | Date | string
     atualizadoEm?: DateTimeFieldUpdateOperationsInput | Date | string

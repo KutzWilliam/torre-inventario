@@ -125,6 +125,8 @@ exports.Prisma.InventarioScalarFieldEnum = {
   id: 'id',
   data: 'data',
   unidade_id: 'unidade_id',
+  praca: 'praca',
+  praca_label: 'praca_label',
   status: 'status',
   criadoEm: 'criadoEm',
   atualizadoEm: 'atualizadoEm'
@@ -146,6 +148,11 @@ exports.Prisma.SortOrder = {
 exports.Prisma.QueryMode = {
   default: 'default',
   insensitive: 'insensitive'
+};
+
+exports.Prisma.NullsOrder = {
+  first: 'first',
+  last: 'last'
 };
 
 
