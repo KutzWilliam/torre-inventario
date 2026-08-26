@@ -5,6 +5,7 @@ import { api } from "@/trpc/react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import Image from "next/image";
+import { useState, useMemo } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -20,23 +21,48 @@ type Detalhe = {
   prev_entrega: string | null;
   origem_nome: string | null;
   destino_nome: string | null;
+  praca: string | null;
   minuta_status: number | null;
   cte_zero?: boolean;
 } | null;
 
+type UltimaBipagem = {
+  unidade_nome: string | null;
+  unidade_sigla: string | null;
+  tipo: "EMBARQUE" | "DESEMBARQUE" | null;
+  data: Date | null;
+} | null;
+
+type ItemInventario = {
+  id: string;
+  codigo_barra: string;
+  status_auditoria: string;
+  criadoEm: Date;
+  detalhe: Detalhe;
+  ultima_bipagem?: UltimaBipagem;
+  ultima_ocorrencia?: { id_oco: number | null; descricao: string | null; data_evento: Date | null } | null;
+};
+
 function StatusBadge({ status }: { status: string }) {
+  if (status === "ENCONTRADO_CORRETO")
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/50 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        Correto
+      </span>
+    );
   if (status === "POSSIVEL_EXTRAVIO")
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200/50 whitespace-nowrap">
         <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-        Possível Extravio
+        Extravio?
       </span>
     );
   if (status === "SOBRA_NA_BASE")
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/50 whitespace-nowrap">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-        Sobra na Base
+        Sobra
       </span>
     );
   return (
@@ -46,13 +72,6 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
-
-type UltimaBipagem = {
-  unidade_nome: string | null;
-  unidade_sigla: string | null;
-  tipo: "EMBARQUE" | "DESEMBARQUE" | null;
-  data: Date | null;
-} | null;
 
 function UltimaBipagemBadge({ bipagem }: { bipagem: UltimaBipagem }) {
   if (!bipagem?.unidade_nome) return <span className="text-slate-300 text-sm">—</span>;
@@ -76,31 +95,24 @@ function UltimaBipagemBadge({ bipagem }: { bipagem: UltimaBipagem }) {
   );
 }
 
-function DivRow({ item }: { item: { id: string; codigo_barra: string; status_auditoria: string; criadoEm: Date; detalhe: Detalhe; ultima_bipagem?: UltimaBipagem; ultima_ocorrencia?: { id_oco: number | null; descricao: string | null; data_evento: Date | null } | null } }) {
+function DivRow({ item }: { item: ItemInventario }) {
   const rota = item.detalhe?.destino_nome && item.detalhe?.origem_nome
     ? `${item.detalhe.origem_nome} -> ${item.detalhe.destino_nome}`
     : item.detalhe?.destino_nome ?? item.detalhe?.origem_nome ?? "—";
 
   return (
     <tr className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors group">
-      {/* Código */}
       <td className="px-4 py-3">
         <span className="font-mono text-sm font-medium text-slate-700 group-hover:text-indigo-600 transition-colors">
           {item.codigo_barra}
         </span>
       </td>
-
-      {/* Status */}
       <td className="px-4 py-3 whitespace-nowrap">
         <StatusBadge status={item.status_auditoria} />
       </td>
-
-      {/* Última Bipagem */}
       <td className="px-4 py-3">
         <UltimaBipagemBadge bipagem={item.ultima_bipagem ?? null} />
       </td>
-
-      {/* Situação Atual */}
       <td className="px-4 py-3 whitespace-nowrap">
         {item.ultima_ocorrencia?.id_oco != null ? (
           <div className="flex flex-col gap-1">
@@ -117,17 +129,6 @@ function DivRow({ item }: { item: { id: string; codigo_barra: string; status_aud
           <span className="text-slate-300 text-sm">—</span>
         )}
       </td>
-
-      {/* Minuta */}
-      <td className="px-4 py-3">
-        {item.detalhe?.id_minuta ? (
-          <span className="font-mono text-sm text-slate-700 font-medium">{item.detalhe.id_minuta}</span>
-        ) : (
-          <span className="text-slate-300 text-sm">—</span>
-        )}
-      </td>
-
-      {/* Manifesto */}
       <td className="px-4 py-3">
         {item.detalhe?.id_manifesto ? (
           <span className="font-mono text-sm text-slate-700 font-medium">{item.detalhe.id_manifesto}</span>
@@ -135,29 +136,122 @@ function DivRow({ item }: { item: { id: string; codigo_barra: string; status_aud
           <span className="text-slate-300 text-sm">—</span>
         )}
       </td>
-
-      {/* Prev. Entrega */}
       <td className="px-4 py-3 whitespace-nowrap">
         <span className="text-sm text-slate-600">{formatDate(item.detalhe?.prev_entrega)}</span>
       </td>
-
-      {/* Rota */}
       <td className="px-4 py-3">
         <span className="text-sm text-slate-600 leading-tight">{rota}</span>
-      </td>
-
-      {/* Registrado em */}
-      <td className="px-4 py-3 whitespace-nowrap">
-        <span className="text-xs text-slate-400">
-          {new Date(item.criadoEm).toLocaleString("pt-BR")}
-        </span>
+        {item.detalhe?.praca && (
+          <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-100 text-slate-500">
+            {item.detalhe.praca}
+          </span>
+        )}
       </td>
     </tr>
   );
 }
 
+// ─── Componente Minuta Group ──────────────────────────────────────────────────
+
+function MinutaGroup({ idMinuta, itens }: { idMinuta: string; itens: ItemInventario[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const esperados = itens.filter(i => i.status_auditoria === "ENCONTRADO_CORRETO" || i.status_auditoria === "FALTANTE").length;
+  const bipados = itens.filter(i => i.status_auditoria === "ENCONTRADO_CORRETO" || i.status_auditoria === "SOBRA_NA_BASE" || i.status_auditoria === "POSSIVEL_EXTRAVIO").length;
+  const faltantes = itens.filter(i => i.status_auditoria === "FALTANTE").length;
+  const corretos = itens.filter(i => i.status_auditoria === "ENCONTRADO_CORRETO").length;
+  const sobras = itens.filter(i => i.status_auditoria === "SOBRA_NA_BASE").length;
+
+  const primeiroDetalhe = itens.find(i => i.detalhe)?.detalhe;
+  const rota = primeiroDetalhe?.destino_nome && primeiroDetalhe?.origem_nome
+    ? `${primeiroDetalhe.origem_nome} -> ${primeiroDetalhe.destino_nome}`
+    : primeiroDetalhe?.destino_nome ?? primeiroDetalhe?.origem_nome ?? "—";
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-4 transition-all">
+      <div 
+        className="px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-4">
+          <div className={`p-2 rounded-xl flex items-center justify-center transition-colors ${expanded ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+            <svg className={`w-5 h-5 transform transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-slate-800 text-lg">
+                Minuta {idMinuta === "SEM_MINUTA" ? "Desconhecida" : idMinuta}
+              </h3>
+              {primeiroDetalhe?.praca && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-500">
+                  Praça {primeiroDetalhe.praca}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 mt-0.5">{rota}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 sm:gap-8 flex-wrap">
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5" title="Total de volumes esperados para esta praça">Esperados</p>
+            <p className="text-lg font-black text-slate-700">{esperados}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5" title="Total de volumes da minuta (todas as praças)">Qtd. Minuta</p>
+            <p className="text-lg font-black text-slate-700">{primeiroDetalhe?.total_volumes ?? "—"}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Bipados</p>
+            <p className="text-lg font-black text-slate-700">{bipados}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Corretos</p>
+            <p className="text-lg font-black text-emerald-600">{corretos}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Faltantes</p>
+            <p className={`text-lg font-black ${faltantes > 0 ? 'text-red-600' : 'text-slate-300'}`}>{faltantes}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Sobras</p>
+            <p className={`text-lg font-black ${sobras > 0 ? 'text-amber-600' : 'text-slate-300'}`}>{sobras}</p>
+          </div>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-slate-100 bg-slate-50/30 p-4">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr className="text-[10px] uppercase tracking-wider text-slate-500">
+                  <th className="px-4 py-3 font-semibold">Código de Barras</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Última Bipagem</th>
+                  <th className="px-4 py-3 font-semibold">Ocorrência</th>
+                  <th className="px-4 py-3 font-semibold">Manifesto</th>
+                  <th className="px-4 py-3 font-semibold">Prev. Entrega</th>
+                  <th className="px-4 py-3 font-semibold">Rota</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itens.map((item) => (
+                  <DivRow key={item.id} item={item} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Página ───────────────────────────────────────────────────────────────────
-import { useState, useMemo } from "react";
+
 export default function RelatorioInventarioPage() {
   const params = useParams();
   const inventarioId = typeof params.id === "string" ? params.id : "";
@@ -167,7 +261,6 @@ export default function RelatorioInventarioPage() {
     { enabled: !!inventarioId }
   );
 
-  // Busca o nome da unidade para exibir no cabeçalho
   const unidadeId = data?.inventario?.unidade_id;
   const { data: nomeUnidade } = api.inventory.buscarNomeUnidade.useQuery(
     { unidade_id: unidadeId! },
@@ -178,11 +271,11 @@ export default function RelatorioInventarioPage() {
 
   const divergenciasSeguras = data?.divergencias ?? [];
 
-  // Obter lista única de situações para o filtro
+  // Obter lista única de situações para o filtro (só de faltantes/extravios/sobras)
   const situacoesUnicas = useMemo(() => {
     const situacoes = new Set<string>();
     divergenciasSeguras.forEach(d => {
-      if (d.ultima_ocorrencia?.descricao) {
+      if (d.status_auditoria !== "ENCONTRADO_CORRETO" && d.ultima_ocorrencia?.descricao) {
         situacoes.add(d.ultima_ocorrencia.descricao);
       }
     });
@@ -191,8 +284,32 @@ export default function RelatorioInventarioPage() {
 
   const divergenciasFiltradas = useMemo(() => {
     if (!filtroSituacao) return divergenciasSeguras;
-    return divergenciasSeguras.filter(d => d.ultima_ocorrencia?.descricao === filtroSituacao);
+    return divergenciasSeguras.filter(d => 
+      d.status_auditoria === "ENCONTRADO_CORRETO" || 
+      d.ultima_ocorrencia?.descricao === filtroSituacao
+    );
   }, [divergenciasSeguras, filtroSituacao]);
+
+  // Agrupar por minuta
+  const minutasMap = useMemo(() => {
+    const map = new Map<string, ItemInventario[]>();
+    divergenciasFiltradas.forEach(item => {
+      const idMinuta = item.detalhe?.id_minuta ? String(item.detalhe.id_minuta) : "SEM_MINUTA";
+      if (!map.has(idMinuta)) map.set(idMinuta, []);
+      map.get(idMinuta)!.push(item as any);
+    });
+    // Ordenar as chaves, colocando SEM_MINUTA por último
+    const chaves = Array.from(map.keys()).sort((a, b) => {
+      if (a === "SEM_MINUTA") return 1;
+      if (b === "SEM_MINUTA") return -1;
+      return parseInt(b) - parseInt(a);
+    });
+    
+    return chaves.map(chave => ({
+      idMinuta: chave,
+      itens: map.get(chave)!
+    }));
+  }, [divergenciasFiltradas]);
 
   if (isLoading) {
     return (
@@ -212,9 +329,6 @@ export default function RelatorioInventarioPage() {
     return (
       <div className="min-h-screen bg-slate-50 p-6 flex items-center justify-center">
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-red-100 max-w-md text-center">
-          <svg className="w-16 h-16 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
           <h2 className="text-xl font-bold text-slate-800 mb-2">Erro ao carregar</h2>
           <p className="text-slate-500 mb-6">{error?.message ?? "Inventário não encontrado"}</p>
           <Link href="/" className="inline-flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors">
@@ -227,15 +341,10 @@ export default function RelatorioInventarioPage() {
 
   const { inventario, contadores } = data;
 
-  // Separar os grupos para exibição por seção
-  const faltantes  = divergenciasFiltradas.filter((d) => d.status_auditoria === "FALTANTE");
-  const sobras     = divergenciasFiltradas.filter((d) => d.status_auditoria === "SOBRA_NA_BASE");
-  const extravios  = divergenciasFiltradas.filter((d) => d.status_auditoria === "POSSIVEL_EXTRAVIO");
-
   const exportarParaExcel = () => {
-    if (!divergenciasFiltradas.length) return;
+    if (!divergenciasSeguras.length) return;
 
-    const rows = divergenciasFiltradas.map(item => {
+    const rows = divergenciasSeguras.map(item => {
       const rota = item.detalhe?.destino_nome && item.detalhe?.origem_nome
         ? `${item.detalhe.origem_nome} → ${item.detalhe.destino_nome}`
         : item.detalhe?.destino_nome ?? item.detalhe?.origem_nome ?? "—";
@@ -244,8 +353,10 @@ export default function RelatorioInventarioPage() {
       if (item.status_auditoria === "POSSIVEL_EXTRAVIO") statusFormatado = "Possível Extravio";
       if (item.status_auditoria === "SOBRA_NA_BASE") statusFormatado = "Sobra na Base";
       if (item.status_auditoria === "FALTANTE") statusFormatado = "Faltante";
+      if (item.status_auditoria === "ENCONTRADO_CORRETO") statusFormatado = "Correto";
 
       return {
+        "Minuta": item.detalhe?.id_minuta ?? "—",
         "Código de Barras": item.codigo_barra,
         "Status": statusFormatado,
         "Última Bipagem": item.ultima_bipagem?.unidade_nome
@@ -254,7 +365,6 @@ export default function RelatorioInventarioPage() {
         "Situação Atual": item.ultima_ocorrencia?.id_oco != null 
           ? (item.ultima_ocorrencia.descricao ?? `Código ${item.ultima_ocorrencia.id_oco}`) 
           : "—",
-        "Minuta": item.detalhe?.id_minuta ?? "—",
         "Manifesto": item.detalhe?.id_manifesto ?? "—",
         "Prev. Entrega": formatDate(item.detalhe?.prev_entrega),
         "Rota": rota,
@@ -264,7 +374,7 @@ export default function RelatorioInventarioPage() {
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Divergências");
+    XLSX.utils.book_append_sheet(wb, ws, "Inventário");
 
     const nomeArquivo = `Relatorio_Inventario_${inventario.id}.xlsx`;
     XLSX.writeFile(wb, nomeArquivo);
@@ -300,20 +410,24 @@ export default function RelatorioInventarioPage() {
                 </span>
               )}
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-green-900">
-              {nomeUnidade ? nomeUnidade.fantasia : `Unidade ${inventario.unidade_id}`}
-            </h1>
+            
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight text-green-900">
+                {nomeUnidade ? nomeUnidade.fantasia : `Unidade ${inventario.unidade_id}`}
+              </h1>
+              {inventario.praca_label && (
+                <>
+                  <span className="text-slate-300 text-2xl">/</span>
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-lg text-sm font-semibold uppercase tracking-wider">
+                    PRAÇA {inventario.praca_label}
+                  </span>
+                </>
+              )}
+            </div>
+
             {nomeUnidade && (
               <p className="text-sm font-mono text-slate-400 mt-0.5">{nomeUnidade.sigla} · ID {inventario.unidade_id}</p>
             )}
-            <p className="text-slate-500 mt-1 flex items-center gap-2 text-sm">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              {new Date(inventario.criadoEm).toLocaleDateString("pt-BR")}
-              <span className="text-slate-300">•</span>
-              <span className="font-mono text-xs">ID: {inventario.id}</span>
-            </p>
           </div>
 
           <div className="flex flex-wrap gap-3 mt-4 sm:mt-0">
@@ -321,228 +435,88 @@ export default function RelatorioInventarioPage() {
               onClick={exportarParaExcel}
               className="inline-flex items-center justify-center px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-xl transition-colors border border-emerald-200 shadow-sm"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
               Excel
-            </button>
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center justify-center px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition-colors border border-slate-300 shadow-sm"
-            >
-              <svg className="w-4 h-4 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Imprimir
             </button>
             <Link
               href="/"
               className="inline-flex items-center justify-center px-4 py-2 bg-green-50 hover:bg-green-100 text-green-800 font-medium rounded-xl transition-colors border border-green-200"
             >
-              Painel de Unidades
+              Voltar ao Início
             </Link>
           </div>
         </header>
 
         {/* Cards de Métricas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Corretos */}
-          <div className="bg-white rounded-3xl shadow-sm border border-emerald-100 p-6 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <svg className="w-24 h-24 text-emerald-500 transform translate-x-4 -translate-y-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            </div>
+          <div className="bg-white rounded-3xl shadow-sm border border-emerald-100 p-6">
             <h3 className="text-emerald-800 font-medium text-sm flex items-center">
               <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
               Corretos
             </h3>
-            <p className="text-4xl font-bold text-emerald-900 mt-3 relative z-10">{contadores.corretos}</p>
-            <p className="text-sm text-emerald-600 mt-1 relative z-10">Bipados no local certo</p>
+            <p className="text-4xl font-bold text-emerald-900 mt-3">{contadores.corretos}</p>
+            <p className="text-sm text-emerald-600 mt-1">Bipados no local certo</p>
           </div>
-
-          {/* Sobras */}
-          <div className="bg-white rounded-3xl shadow-sm border border-amber-100 p-6 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <svg className="w-24 h-24 text-amber-500 transform translate-x-4 -translate-y-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-              </svg>
-            </div>
+          <div className="bg-white rounded-3xl shadow-sm border border-amber-100 p-6">
             <h3 className="text-amber-800 font-medium text-sm flex items-center">
               <span className="w-2 h-2 rounded-full bg-amber-500 mr-2"></span>
               Sobras
             </h3>
-            <p className="text-4xl font-bold text-amber-900 mt-3 relative z-10">{contadores.sobras}</p>
-            <p className="text-sm text-amber-600 mt-1 relative z-10">Fisicamente aqui, não deveriam</p>
+            <p className="text-4xl font-bold text-amber-900 mt-3">{contadores.sobras}</p>
+            <p className="text-sm text-amber-600 mt-1">Fisicamente aqui, não deveriam</p>
           </div>
-
-          {/* Faltantes */}
-          <div className="bg-white rounded-3xl shadow-sm border border-red-100 p-6 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <svg className="w-24 h-24 text-red-500 transform translate-x-4 -translate-y-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
+          <div className="bg-white rounded-3xl shadow-sm border border-red-100 p-6">
             <h3 className="text-red-800 font-medium text-sm flex items-center">
               <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
               Faltantes
             </h3>
-            <p className="text-4xl font-bold text-red-900 mt-3 relative z-10">{contadores.faltantes}</p>
-            <p className="text-sm text-red-600 mt-1 relative z-10">Deveriam estar, não achados</p>
+            <p className="text-4xl font-bold text-red-900 mt-3">{contadores.faltantes}</p>
+            <p className="text-sm text-red-600 mt-1">Deveriam estar, não achados</p>
           </div>
-
-          {/* Extravios */}
-          <div className="bg-white rounded-3xl shadow-sm border border-purple-100 p-6 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <svg className="w-24 h-24 text-purple-500 transform translate-x-4 -translate-y-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
+          <div className="bg-white rounded-3xl shadow-sm border border-purple-100 p-6">
             <h3 className="text-purple-800 font-medium text-sm flex items-center">
               <span className="w-2 h-2 rounded-full bg-purple-500 mr-2"></span>
               Possível Extravio
             </h3>
-            <p className="text-4xl font-bold text-purple-900 mt-3 relative z-10">{contadores.extravios}</p>
-            <p className="text-sm text-purple-600 mt-1 relative z-10">Bipado mas já finalizado/entregue</p>
+            <p className="text-4xl font-bold text-purple-900 mt-3">{contadores.extravios}</p>
+            <p className="text-sm text-purple-600 mt-1">Bipado mas já finalizado/entregue</p>
           </div>
         </div>
 
-        {/* Tabela de Divergências */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden w-full">
-          <div className="px-4 sm:px-6 py-5 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4">
+        {/* Minutas List */}
+        <div>
+          <div className="flex justify-between items-end mb-6">
             <div>
-              <h2 className="font-semibold text-slate-800 text-lg">Detalhamento de Divergências</h2>
-              <p className="text-sm text-slate-500 mt-0.5">Use esta lista para procuras físicas no galpão</p>
+              <h2 className="text-2xl font-bold text-slate-800">Agrupamento por Minuta</h2>
+              <p className="text-slate-500">Detalhes de todos os volumes conferidos nesta praça/unidade.</p>
             </div>
-            
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
-              {situacoesUnicas.length > 0 && (
-                <select
-                  value={filtroSituacao}
-                  onChange={(e) => setFiltroSituacao(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 w-full sm:w-auto"
-                >
-                  <option value="">Todas as situações</option>
-                  {situacoesUnicas.map(sit => (
-                    <option key={sit} value={sit}>{sit}</option>
-                  ))}
-                </select>
-              )}
-              <span className="text-sm font-medium text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm whitespace-nowrap">
-                {divergenciasFiltradas.length} itens divergentes
-              </span>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto w-full">
-            {divergenciasFiltradas.length === 0 ? (
-              <div className="p-16 text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 mb-4">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-slate-800">Inventário Perfeito!</h3>
-                <p className="text-slate-500 mt-1">Nenhuma sobra ou falta foi registrada nesta unidade.</p>
-              </div>
-            ) : (
-              <>
-                {/* Legenda de seções */}
-                {faltantes.length > 0 && (
-                  <div className="px-6 py-3 bg-red-50/60 border-b border-red-100 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-red-500" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-red-700">
-                      Faltantes — {faltantes.length} volumes
-                    </span>
-                  </div>
-                )}
-                {faltantes.length > 0 && (
-                  <table className="w-full text-left">
-                    <thead className="bg-white border-b border-slate-100">
-                      <tr className="text-[10px] uppercase tracking-wider text-slate-400">
-                        <th className="px-4 py-3 font-semibold">Código de Barras</th>
-                        <th className="px-4 py-3 font-semibold">Tipo</th>
-                        <th className="px-4 py-3 font-semibold">Última Bipagem</th>
-                        <th className="px-4 py-3 font-semibold">Situação Atual</th>
-                        <th className="px-4 py-3 font-semibold">Minuta</th>
-                        <th className="px-4 py-3 font-semibold">Manifesto</th>
-                        <th className="px-4 py-3 font-semibold">Prev. Entrega</th>
-                        <th className="px-4 py-3 font-semibold">Rota</th>
-                        <th className="px-4 py-3 font-semibold">Registrado Em</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {faltantes.map((item) => (
-                        <DivRow key={item.id} item={item} />
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-
-                {sobras.length > 0 && (
-                  <div className="px-6 py-3 bg-amber-50/60 border-y border-amber-100 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-amber-700">
-                      Sobras — {sobras.length} volumes
-                    </span>
-                  </div>
-                )}
-                {sobras.length > 0 && (
-                  <table className="w-full text-left">
-                    <thead className="bg-white border-b border-slate-100">
-                      <tr className="text-[10px] uppercase tracking-wider text-slate-400">
-                        <th className="px-4 py-3 font-semibold">Código de Barras</th>
-                        <th className="px-4 py-3 font-semibold">Tipo</th>
-                        <th className="px-4 py-3 font-semibold">Última Bipagem</th>
-                        <th className="px-4 py-3 font-semibold">Situação Atual</th>
-                        <th className="px-4 py-3 font-semibold">Minuta</th>
-                        <th className="px-4 py-3 font-semibold">Manifesto</th>
-                        <th className="px-4 py-3 font-semibold">Prev. Entrega</th>
-                        <th className="px-4 py-3 font-semibold">Rota</th>
-                        <th className="px-4 py-3 font-semibold">Registrado Em</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sobras.map((item) => (
-                        <DivRow key={item.id} item={item} />
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-
-                {extravios.length > 0 && (
-                  <div className="px-6 py-3 bg-purple-50/60 border-y border-purple-100 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-500" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-purple-700">
-                      Possível Extravio — {extravios.length} volumes
-                    </span>
-                  </div>
-                )}
-                {extravios.length > 0 && (
-                  <table className="w-full text-left">
-                    <thead className="bg-white border-b border-slate-100">
-                      <tr className="text-[10px] uppercase tracking-wider text-slate-400">
-                        <th className="px-4 py-3 font-semibold">Código de Barras</th>
-                        <th className="px-4 py-3 font-semibold">Tipo</th>
-                        <th className="px-4 py-3 font-semibold">Última Bipagem</th>
-                        <th className="px-4 py-3 font-semibold">Ocorrência</th>
-                        <th className="px-4 py-3 font-semibold">Minuta</th>
-                        <th className="px-4 py-3 font-semibold">Manifesto</th>
-                        <th className="px-4 py-3 font-semibold">Prev. Entrega</th>
-                        <th className="px-4 py-3 font-semibold">Rota</th>
-                        <th className="px-4 py-3 font-semibold">Registrado Em</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {extravios.map((item) => (
-                        <DivRow key={item.id} item={item} />
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </>
+            {situacoesUnicas.length > 0 && (
+              <select
+                value={filtroSituacao}
+                onChange={(e) => setFiltroSituacao(e.target.value)}
+                className="px-4 py-2 text-sm border border-slate-200 rounded-xl bg-white text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500"
+              >
+                <option value="">Filtrar Faltantes por Ocorrência (Todas)</option>
+                {situacoesUnicas.map(sit => (
+                  <option key={sit} value={sit}>{sit}</option>
+                ))}
+              </select>
             )}
           </div>
+
+          {minutasMap.length === 0 ? (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-16 text-center">
+              <h3 className="text-lg font-medium text-slate-800">Inventário Vazio</h3>
+              <p className="text-slate-500 mt-1">Nenhum volume foi contabilizado.</p>
+            </div>
+          ) : (
+            minutasMap.map(minuta => (
+              <MinutaGroup 
+                key={minuta.idMinuta} 
+                idMinuta={minuta.idMinuta} 
+                itens={minuta.itens} 
+              />
+            ))
+          )}
         </div>
 
       </div>

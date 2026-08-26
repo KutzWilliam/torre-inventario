@@ -310,11 +310,17 @@ export const inventoryRouter = createTRPCRouter({
     }),
 
   criarInventario: publicProcedure
-    .input(z.object({ unidade_id: z.number().int().positive() }))
+    .input(z.object({ 
+      unidade_id: z.number().int().positive(),
+      praca: z.string().optional(),
+      praca_label: z.string().optional()
+    }))
     .mutation(async ({ ctx, input }) => {
       const novoInventario = await ctx.db.inventario.create({
         data: {
           unidade_id: input.unidade_id,
+          praca: input.praca,
+          praca_label: input.praca_label,
           status: "ABERTO",
         },
       });
@@ -358,6 +364,12 @@ export const inventoryRouter = createTRPCRouter({
       //   - Última movimentação = DESEMBARQUE (picking.tipo = 2) nessa unidade
       //   - Minuta ativa (não finalizada nem cancelada: status != 6, 13)
       //   - Janela de 90 dias para não varrer o histórico inteiro
+      const pracaFilter = inventario.praca 
+        ? inventario.praca === "SEM_PRACA"
+          ? dbReadonly`AND (praca IS NULL OR praca = '')`
+          : dbReadonly`AND praca = ${inventario.praca}`
+        : dbReadonly``;
+
       const teoricos = await dbReadonly`
         -- Obtém a última movimentação de cada barra nos últimos 90 dias
         -- e verifica se esse último movimento foi DESEMBARQUE nessa unidade.
@@ -367,11 +379,13 @@ export const inventoryRouter = createTRPCRouter({
           SELECT DISTINCT ON (h.barra)
             h.barra,
             p.unidade AS picking_unidade,
-            p.tipo    AS picking_tipo
+            p.tipo    AS picking_tipo,
+            r.praca   AS praca
           FROM historico_volume h
           INNER JOIN picking p ON h.manifesto = p.id_manifesto AND p.tipo = h.tipo
           INNER JOIN volumes  v ON h.id_volume  = v.id_volume
           INNER JOIN minuta   m ON v.id_minuta  = m.id_minuta
+          LEFT JOIN rotas r ON m.rota::text = r.id::text
           WHERE h.data >= NOW() - INTERVAL '90 days'
             AND m.status NOT IN (6, 13)
             AND m.cte_numero != 0
@@ -379,6 +393,7 @@ export const inventoryRouter = createTRPCRouter({
         ) ultima_mov
         WHERE picking_tipo = 2                       -- Última ação = desembarque
           AND picking_unidade = ${unidadeId}         -- Nessa unidade especificamente
+          ${pracaFilter}
       `;
 
       // 4. Reconciliação (O que deveria estar - O que foi bipado = Faltantes)
@@ -454,12 +469,11 @@ export const inventoryRouter = createTRPCRouter({
           corretos++;
         } else if (item.status_auditoria === "POSSIVEL_EXTRAVIO") {
           extravios++;
-          divergencias.push(item);
         } else {
           if (item.status_auditoria === "SOBRA_NA_BASE") sobras++;
           if (item.status_auditoria === "FALTANTE")      faltantes++;
-          divergencias.push(item);
         }
+        divergencias.push(item);
       }
 
       // Enriquece as divergências com dados do banco legado
@@ -471,7 +485,10 @@ export const inventoryRouter = createTRPCRouter({
           prev_entrega: string | null;
           origem_nome:  string | null;
           destino_nome: string | null;
+          rota_nome:    string | null;
+          praca:        string | null;
           minuta_status: number | null;
+          total_volumes: number | null;
         } | null;
         ultima_bipagem: {
           unidade_nome: string | null;
@@ -496,18 +513,26 @@ export const inventoryRouter = createTRPCRouter({
             v.id_minuta,
             m.prev_entrega,
             COALESCE(
+              ro.rota,
               (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.origem::text LIMIT 1),
               m.origem
             )                 AS origem_nome,
             COALESCE(
+              rd.rota,
               (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.destino::text LIMIT 1),
               m.destino
             )                 AS destino_nome,
+            r.rota            AS rota_nome,
+            r.praca           AS praca,
             m.status          AS minuta_status,
+            m.total_volumes   AS total_volumes,
             m.cte_numero      AS cte_numero
           FROM historico_volume h
           INNER JOIN volumes v ON h.id_volume  = v.id_volume
           INNER JOIN minuta  m ON v.id_minuta  = m.id_minuta
+          LEFT JOIN rotas r ON m.rota::text = r.id::text
+          LEFT JOIN rotas rd ON m.destino::text = rd.id_rota::text
+          LEFT JOIN rotas ro ON m.origem::text = ro.id_rota::text
           WHERE h.barra = ANY(${barcodes})
           ORDER BY h.barra, h.id DESC
         `;
@@ -521,7 +546,10 @@ export const inventoryRouter = createTRPCRouter({
               prev_entrega:  d.prev_entrega  as string | null,
               origem_nome:   d.origem_nome   as string | null,
               destino_nome:  d.destino_nome  as string | null,
+              rota_nome:     d.rota_nome     as string | null,
+              praca:         d.praca         as string | null,
               minuta_status: d.minuta_status ? Number(d.minuta_status) : null,
+              total_volumes: d.total_volumes ? Number(d.total_volumes) : null,
               cte_zero:      String(d.cte_numero ?? '') === '0',
             },
           ])
@@ -828,5 +856,76 @@ export const inventoryRouter = createTRPCRouter({
         totalPages: Math.ceil(totalCount / input.pageSize),
         currentPage: input.page
       };
+    }),
+
+  // -------------------------------------------------------------------------
+  // obterStatusPracasDia
+  // -------------------------------------------------------------------------
+  obterStatusPracasDia: publicProcedure
+    .input(z.object({ unidade_id: z.number().int().positive(), data: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      // Get all active volumes grouped by praca
+      const rows = await dbReadonly`
+        WITH UltimaMovimentacao AS (
+          SELECT DISTINCT ON (h.barra)
+            h.barra,
+            p.unidade        AS picking_unidade,
+            p.tipo           AS picking_tipo,
+            r.praca          AS praca
+          FROM historico_volume h
+          INNER JOIN picking   p   ON h.manifesto = p.id_manifesto AND p.tipo = h.tipo
+          INNER JOIN volumes   v   ON h.id_volume  = v.id_volume
+          INNER JOIN minuta    m   ON v.id_minuta  = m.id_minuta
+          LEFT JOIN rotas r ON m.rota::text = r.id::text
+          WHERE h.data >= NOW() - INTERVAL '90 days'
+            AND m.status NOT IN (6, 13)
+            AND m.cte_numero != 0
+          ORDER BY h.barra, h.id DESC
+        )
+        SELECT
+          COALESCE(praca, 'SEM_PRACA') as praca,
+          COUNT(*) as no_patio
+        FROM UltimaMovimentacao
+        WHERE picking_tipo = 2
+          AND picking_unidade = ${input.unidade_id}
+        GROUP BY COALESCE(praca, 'SEM_PRACA')
+        ORDER BY praca ASC
+      `;
+
+      // Get inventories for today for this unit
+      const hoje = new Date();
+      let inicioDia = new Date(hoje.setHours(0, 0, 0, 0));
+      let fimDia = new Date(hoje.setHours(23, 59, 59, 999));
+      if (input.data) {
+        const [ano, mes, dia] = input.data.split('-').map(Number) as [number, number, number];
+        inicioDia = new Date(ano, mes - 1, dia, 0, 0, 0, 0);
+        fimDia = new Date(ano, mes - 1, dia, 23, 59, 59, 999);
+      }
+
+      const inventariosDb = await ctx.db.inventario.findMany({
+        where: { 
+          unidade_id: input.unidade_id,
+          criadoEm: { gte: inicioDia, lte: fimDia }
+        },
+        orderBy: { criadoEm: "desc" }
+      });
+
+      const pracasMap = new Map<string, any>();
+      for (const row of rows) {
+        const pracaId = String(row.praca);
+        const inv = inventariosDb.find(i => (i.praca || 'SEM_PRACA') === pracaId);
+        
+        pracasMap.set(pracaId, {
+          praca: pracaId,
+          praca_label: pracaId === 'SEM_PRACA' ? 'Sem Praça' : pracaId,
+          no_patio: Number(row.no_patio),
+          inventario: inv ? {
+            id: inv.id,
+            status: inv.status
+          } : null
+        });
+      }
+
+      return Array.from(pracasMap.values());
     }),
 });

@@ -293,13 +293,21 @@ export default function InventarioPage() {
               </h1>
             </div>
             {nomeUnidade ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mt-2">
                 <div>
                   <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-800 border border-green-200 px-3 py-1 rounded-lg text-sm font-semibold">
                     🏢 {nomeUnidade.fantasia}
                   </span>
                   <span className="text-slate-400 text-xs font-mono ml-2">{nomeUnidade.sigla}</span>
                 </div>
+                {inventarioAtual?.praca_label && (
+                  <>
+                    <span className="text-slate-300">/</span>
+                    <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-lg text-sm font-semibold uppercase tracking-wider">
+                      PRAÇA {inventarioAtual.praca_label}
+                    </span>
+                  </>
+                )}
               </div>
             ) : (
               <p className="text-slate-500 mt-1 text-sm">
