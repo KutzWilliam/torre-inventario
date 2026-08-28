@@ -149,7 +149,7 @@ function MinutaGroup({ idMinuta, itens }: { idMinuta: string; itens: ItemInventa
   
   // Calcular o total da minuta com base nos volumes retornados se não tiver o dado direto,
   // mas primeiroDetalhe?.total_volumes deve estar presente para minutas que vieram do banco legado.
-  const totalMinuta = primeiroDetalhe?.total_volumes ?? (bipados + faltantes);
+  const totalMinuta = (primeiroDetalhe as any)?.total_volumes ?? (bipados + faltantes);
 
   const rota = primeiroDetalhe?.destino_nome && primeiroDetalhe?.origem_nome
     ? `${primeiroDetalhe.origem_nome} -> ${primeiroDetalhe.destino_nome}`
@@ -339,7 +339,7 @@ export default function RelatorioInventarioPage() {
 
   // Calcular métricas gerais
   const totalBipados = minutasBipadas.reduce((acc, m) => acc + m.itens.filter(i => i.status_auditoria !== "FALTANTE").length, 0);
-  const totalMinutas = minutasBipadas.length > 0 && minutasBipadas[minutasBipadas.length - 1].idMinuta === "SEM_MINUTA" 
+  const totalMinutas = minutasBipadas.length > 0 && minutasBipadas[minutasBipadas.length - 1]?.idMinuta === "SEM_MINUTA" 
     ? minutasBipadas.length - 1 
     : minutasBipadas.length;
   const totalFaltantes = minutasBipadas.reduce((acc, m) => acc + m.itens.filter(i => i.status_auditoria === "FALTANTE").length, 0);

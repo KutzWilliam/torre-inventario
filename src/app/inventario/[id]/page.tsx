@@ -294,7 +294,7 @@ export default function InventarioPage() {
   // Iterar de trás pra frente (dos mais antigos para os mais novos)
   for (let i = todosItens.length - 1; i >= 0; i--) {
     const item = todosItens[i];
-    if (item.id_minuta) {
+    if (item?.id_minuta) {
       const atual = contadorMinuta.get(item.id_minuta) || 0;
       const proximo = atual + 1;
       contadorMinuta.set(item.id_minuta, proximo);
