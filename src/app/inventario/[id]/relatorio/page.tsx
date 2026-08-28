@@ -147,7 +147,7 @@ function MinutaGroup({ idMinuta, itens }: { idMinuta: string; itens: ItemInventa
   const bipados = itens.filter(i => i.status_auditoria !== "FALTANTE").length;
   const faltantes = itens.filter(i => i.status_auditoria === "FALTANTE").length;
   const primeiroDetalhe = itens.find(i => i.detalhe)?.detalhe;
-  
+
   // Calcular o total da minuta com base nos volumes retornados se não tiver o dado direto,
   // mas primeiroDetalhe?.total_volumes deve estar presente para minutas que vieram do banco legado.
   const totalMinuta = primeiroDetalhe?.total_volumes ?? (bipados + faltantes);
@@ -158,7 +158,7 @@ function MinutaGroup({ idMinuta, itens }: { idMinuta: string; itens: ItemInventa
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-4 transition-all">
-      <div 
+      <div
         className="px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
         onClick={() => setExpanded(!expanded)}
       >
@@ -244,13 +244,9 @@ export default function RelatorioInventarioPage() {
     { enabled: !!unidadeId }
   );
 
-<<<<<<< HEAD
   const [filtroSituacao, setFiltroSituacao] = useState<string>("");
 
   const divergenciasSeguras = useMemo(() => data?.divergencias ?? [], [data?.divergencias]);
-=======
-  const divergenciasSeguras = data?.divergencias ?? [];
->>>>>>> 1a00a8e1526d4aba3827534270373220d30d6ef0
 
   // Agrupar por minuta
   const minutasMap = useMemo(() => {
@@ -266,7 +262,7 @@ export default function RelatorioInventarioPage() {
       if (b === "SEM_MINUTA") return -1;
       return parseInt(b) - parseInt(a);
     });
-    
+
     return chaves.map(chave => ({
       idMinuta: chave,
       itens: map.get(chave)!
@@ -274,7 +270,7 @@ export default function RelatorioInventarioPage() {
   }, [divergenciasSeguras]);
 
   const minutasBipadas = useMemo(() => {
-    return minutasMap.filter(minuta => 
+    return minutasMap.filter(minuta =>
       minuta.itens.some(item => item.status_auditoria !== "FALTANTE")
     );
   }, [minutasMap]);
@@ -326,8 +322,8 @@ export default function RelatorioInventarioPage() {
         "Última Bipagem": item.ultima_bipagem?.unidade_nome
           ? `${item.ultima_bipagem.tipo === "EMBARQUE" ? "Embarque" : "Desembarque"} - ${item.ultima_bipagem.unidade_nome}`
           : "—",
-        "Situação Atual": item.ultima_ocorrencia?.id_oco != null 
-          ? (item.ultima_ocorrencia.descricao ?? `Código ${item.ultima_ocorrencia.id_oco}`) 
+        "Situação Atual": item.ultima_ocorrencia?.id_oco != null
+          ? (item.ultima_ocorrencia.descricao ?? `Código ${item.ultima_ocorrencia.id_oco}`)
           : "—",
         "Manifesto": item.detalhe?.id_manifesto ?? "—",
         "Prev. Entrega": formatDate(item.detalhe?.prev_entrega),
@@ -346,8 +342,8 @@ export default function RelatorioInventarioPage() {
 
   // Calcular métricas gerais
   const totalBipados = minutasBipadas.reduce((acc, m) => acc + m.itens.filter(i => i.status_auditoria !== "FALTANTE").length, 0);
-  const totalMinutas = minutasBipadas.length > 0 && minutasBipadas[minutasBipadas.length - 1].idMinuta === "SEM_MINUTA" 
-    ? minutasBipadas.length - 1 
+  const totalMinutas = minutasBipadas.length > 0 && minutasBipadas[minutasBipadas.length - 1].idMinuta === "SEM_MINUTA"
+    ? minutasBipadas.length - 1
     : minutasBipadas.length;
   const totalFaltantes = minutasBipadas.reduce((acc, m) => acc + m.itens.filter(i => i.status_auditoria === "FALTANTE").length, 0);
 
@@ -381,7 +377,7 @@ export default function RelatorioInventarioPage() {
                 </span>
               )}
             </div>
-            
+
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight text-green-900">
                 {nomeUnidade ? nomeUnidade.fantasia : `Unidade ${inventario.unidade_id}`}
@@ -455,10 +451,10 @@ export default function RelatorioInventarioPage() {
             </div>
           ) : (
             minutasBipadas.map(minuta => (
-              <MinutaGroup 
-                key={minuta.idMinuta} 
-                idMinuta={minuta.idMinuta} 
-                itens={minuta.itens} 
+              <MinutaGroup
+                key={minuta.idMinuta}
+                idMinuta={minuta.idMinuta}
+                itens={minuta.itens}
               />
             ))
           )}
