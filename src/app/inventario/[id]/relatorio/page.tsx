@@ -23,6 +23,7 @@ type Detalhe = {
   destino_nome: string | null;
   praca: string | null;
   minuta_status: number | null;
+  total_volumes?: number | null;
   cte_zero?: boolean;
 } | null;
 
@@ -269,7 +270,7 @@ export default function RelatorioInventarioPage() {
 
   const [filtroSituacao, setFiltroSituacao] = useState<string>("");
 
-  const divergenciasSeguras = data?.divergencias ?? [];
+  const divergenciasSeguras = useMemo(() => data?.divergencias ?? [], [data?.divergencias]);
 
   // Obter lista única de situações para o filtro (só de faltantes/extravios/sobras)
   const situacoesUnicas = useMemo(() => {
@@ -296,7 +297,7 @@ export default function RelatorioInventarioPage() {
     divergenciasFiltradas.forEach(item => {
       const idMinuta = item.detalhe?.id_minuta ? String(item.detalhe.id_minuta) : "SEM_MINUTA";
       if (!map.has(idMinuta)) map.set(idMinuta, []);
-      map.get(idMinuta)!.push(item as any);
+      map.get(idMinuta)!.push(item);
     });
     // Ordenar as chaves, colocando SEM_MINUTA por último
     const chaves = Array.from(map.keys()).sort((a, b) => {

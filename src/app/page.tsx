@@ -27,19 +27,6 @@ const IconSearch = () => (
   </svg>
 );
 
-const IconX = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const IconSpin = () => (
-  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-    <path className="opacity-75" fill="currentColor"
-      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-  </svg>
-);
 
 const IconWarehouse = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,53 +46,6 @@ const IconTruck = () => (
   </svg>
 );
 
-// ─── Modal de confirmação de novo inventário ──────────────────────────────────
-interface ModalNovoInventarioProps {
-  unidade: { id_unidade: number; fantasia: string; sigla: string } | null;
-  onConfirm: (unidadeId: number) => void;
-  onClose: () => void;
-  isPending: boolean;
-}
-
-function ModalNovoInventario({ unidade, onConfirm, onClose, isPending }: ModalNovoInventarioProps) {
-  if (!unidade) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md p-8 animate-in fade-in zoom-in-95 duration-200">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
-          <IconX />
-        </button>
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center text-green-700">
-            <IconBox />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-green-700 mb-0.5">Novo Inventário</p>
-            <h2 className="text-xl font-bold text-slate-800">Confirmar Unidade</h2>
-          </div>
-        </div>
-        <div className="bg-green-50 rounded-2xl p-4 mb-6 border border-green-100">
-          <p className="text-xs text-green-700 mb-1 uppercase tracking-wider font-medium">Unidade selecionada</p>
-          <p className="text-lg font-bold text-slate-800">{unidade.fantasia}</p>
-          <p className="text-sm text-slate-500 font-mono mt-0.5">{unidade.sigla} · ID {unidade.id_unidade}</p>
-        </div>
-        <p className="text-sm text-slate-500 mb-6">
-          Será iniciada uma nova sessão de contagem para esta unidade.
-        </p>
-        <div className="flex gap-3">
-          <button onClick={onClose} disabled={isPending} className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors disabled:opacity-50">
-            Cancelar
-          </button>
-          <button onClick={() => onConfirm(unidade.id_unidade)} disabled={isPending} className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-            {isPending ? <IconSpin /> : <IconPlus />}
-            {isPending ? "Criando..." : "Iniciar"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Componentes Gráficos ─────────────────────────────────────────────────────
 function SegmentedDonutChart({ 
@@ -246,8 +186,6 @@ export default function Home() {
   const [busca, setBusca] = useState("");
   // dataStr default is today YYYY-MM-DD
   const [dataStr, setDataStr] = useState<string>(hojeStr!);
-  const [modalUnidade, setModalUnidade] = useState<{ id_unidade: number; fantasia: string; sigla: string } | null>(null);
-
   const { data: dashboard, isLoading: loadingDash } = api.inventory.obterDashboard.useQuery({ data: dataStr });
   const { data: unidades, isLoading: loadingUnidades } = api.inventory.listarUnidadesComVolumes.useQuery(undefined, {
     refetchInterval: 2 * 60 * 1000,

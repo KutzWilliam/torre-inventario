@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { dbReadonly } from "@/server/db-readonly";
 import { TRPCError } from "@trpc/server";
@@ -910,10 +909,17 @@ export const inventoryRouter = createTRPCRouter({
         orderBy: { criadoEm: "desc" }
       });
 
-      const pracasMap = new Map<string, any>();
+      type PracaEntry = {
+        praca: string;
+        praca_label: string;
+        no_patio: number;
+        inventario: { id: string; status: string } | null;
+      };
+
+      const pracasMap = new Map<string, PracaEntry>();
       for (const row of rows) {
         const pracaId = String(row.praca);
-        const inv = inventariosDb.find(i => (i.praca || 'SEM_PRACA') === pracaId);
+        const inv = inventariosDb.find(i => (i.praca ?? 'SEM_PRACA') === pracaId);
         
         pracasMap.set(pracaId, {
           praca: pracaId,
