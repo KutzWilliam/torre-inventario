@@ -290,10 +290,44 @@ export const inventoryRouter = createTRPCRouter({
   listarItensDoInventario: publicProcedure
     .input(z.object({ inventarioId: z.string() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db.itemInventario.findMany({
+      const itens = await ctx.db.itemInventario.findMany({
         where: { inventario_id: input.inventarioId },
         orderBy: { criadoEm: "desc" },
-        take: 200,
+      });
+
+      if (itens.length === 0) return [];
+
+      const barcodes = itens.map((i) => i.codigo_barra);
+
+      const detalhes = await dbReadonly`
+        SELECT DISTINCT ON (h.barra)
+          h.barra,
+          v.id_minuta,
+          m.total_volumes
+        FROM historico_volume h
+        INNER JOIN volumes v ON h.id_volume = v.id_volume
+        INNER JOIN minuta m ON v.id_minuta = m.id_minuta
+        WHERE h.barra = ANY(${barcodes})
+        ORDER BY h.barra, h.id DESC
+      `;
+
+      const detalheMap = new Map(
+        detalhes.map((d) => [
+          String(d.barra),
+          {
+            id_minuta: d.id_minuta ? Number(d.id_minuta) : null,
+            total_volumes: d.total_volumes ? Number(d.total_volumes) : null,
+          },
+        ])
+      );
+
+      return itens.map((item) => {
+        const d = detalheMap.get(item.codigo_barra);
+        return {
+          ...item,
+          id_minuta: d?.id_minuta ?? null,
+          total_volumes: d?.total_volumes ?? null,
+        };
       });
     }),
 
@@ -477,7 +511,6 @@ export const inventoryRouter = createTRPCRouter({
       }
 
       // Enriquece as divergências com dados do banco legado
-      // (minuta, manifesto, prev_entrega, origem, destino, ultima_bipagem, ultima_ocorrencia)
       let divergenciasEnriquecidas: (typeof itens[number] & {
         detalhe: {
           id_minuta:    number | null;
@@ -503,8 +536,33 @@ export const inventoryRouter = createTRPCRouter({
         } | null;
       })[] = [];
 
-      if (divergencias.length > 0) {
-        const barcodes = divergencias.map((d) => d.codigo_barra);
+      if (itens.length > 0) {
+        const barcodesIniciais = itens.map((d) => d.codigo_barra);
+
+        // Encontrar as minutas associadas aos itens bipados
+        const minutasIniciais = await dbReadonly`
+          SELECT DISTINCT v.id_minuta
+          FROM historico_volume h
+          INNER JOIN volumes v ON h.id_volume = v.id_volume
+          WHERE h.barra = ANY(${barcodesIniciais})
+        `;
+
+        const minutaIdsIniciais = minutasIniciais.map(m => Number(m.id_minuta)).filter(Boolean);
+
+        // Obter todas as barras dessas minutas
+        const todasBarras = minutaIdsIniciais.length > 0 ? await dbReadonly`
+          SELECT 
+            (SELECT h.barra FROM historico_volume h WHERE h.id_volume = v.id_volume ORDER BY h.id DESC LIMIT 1) as barra
+          FROM volumes v
+          WHERE v.id_minuta = ANY(${minutaIdsIniciais})
+        ` : [];
+
+        const allBarcodesSet = new Set<string>(barcodesIniciais);
+        for (const b of todasBarras) {
+          if (b.barra) allBarcodesSet.add(String(b.barra));
+        }
+
+        const allBarcodes = Array.from(allBarcodesSet);
 
         const detalhes = await dbReadonly`
           SELECT DISTINCT ON (h.barra)
@@ -533,7 +591,7 @@ export const inventoryRouter = createTRPCRouter({
           LEFT JOIN rotas r ON m.rota::text = r.id::text
           LEFT JOIN rotas rd ON m.destino::text = rd.id_rota::text
           LEFT JOIN rotas ro ON m.origem::text = ro.id_rota::text
-          WHERE h.barra = ANY(${barcodes})
+          WHERE h.barra = ANY(${allBarcodes})
           ORDER BY h.barra, h.id DESC
         `;
 
@@ -565,7 +623,7 @@ export const inventoryRouter = createTRPCRouter({
           FROM historico_volume h
           INNER JOIN picking p ON h.manifesto = p.id_manifesto AND p.tipo = h.tipo
           INNER JOIN unidades u ON u.id_unidade = p.unidade
-          WHERE h.barra = ANY(${barcodes})
+          WHERE h.barra = ANY(${allBarcodes})
           ORDER BY h.barra, h.id DESC
         `;
 
@@ -581,8 +639,6 @@ export const inventoryRouter = createTRPCRouter({
           ])
         );
 
-        // Busca a última ocorrência de cada volume via id_minuta
-        // (processo já tem id_minuta diretamente -- sem join intermediário)
         const minutaIds = detalhes
           .map((d) => d.id_minuta ? Number(d.id_minuta) : null)
           .filter((id): id is number => id !== null);
@@ -602,7 +658,6 @@ export const inventoryRouter = createTRPCRouter({
             `
           : [];
 
-        // Mapa id_minuta -> ocorrencia
         const ocorrenciasMap = new Map(
           ocorrencias.map((o) => [
             Number(o.id_minuta),
@@ -614,14 +669,21 @@ export const inventoryRouter = createTRPCRouter({
           ])
         );
 
-        divergenciasEnriquecidas = divergencias.map((item) => {
-          const detalhe = detalheMap.get(item.codigo_barra) ?? null;
+        const itemMap = new Map(itens.map(i => [i.codigo_barra, i]));
+
+        divergenciasEnriquecidas = allBarcodes.map((barra) => {
+          const itemPrisma = itemMap.get(barra);
+          const detalhe = detalheMap.get(barra) ?? null;
           const minutaId = detalhe?.id_minuta ?? null;
           return {
-            ...item,
+            id: itemPrisma ? itemPrisma.id : `virtual-faltante-${barra}`,
+            codigo_barra: barra,
+            status_auditoria: itemPrisma ? itemPrisma.status_auditoria : "FALTANTE",
+            criadoEm: itemPrisma ? itemPrisma.criadoEm : new Date(),
             detalhe,
-            ultima_bipagem: bipagensMap.get(item.codigo_barra) ?? null,
+            ultima_bipagem: bipagensMap.get(barra) ?? null,
             ultima_ocorrencia: minutaId ? (ocorrenciasMap.get(minutaId) ?? null) : null,
+            inventario_id: itemPrisma ? itemPrisma.inventario_id : inventario.id,
           };
         });
       }
@@ -642,7 +704,6 @@ export const inventoryRouter = createTRPCRouter({
   obterDashboard: publicProcedure
     .input(z.object({ data: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      // 1. Calcular a data (Hoje por padrão ou a data enviada no input YYYY-MM-DD)
       const hoje = new Date();
       let inicioDia = new Date(hoje.setHours(0, 0, 0, 0));
       let fimDia = new Date(hoje.setHours(23, 59, 59, 999));
@@ -653,7 +714,6 @@ export const inventoryRouter = createTRPCRouter({
         fimDia = new Date(ano, mes - 1, dia, 23, 59, 59, 999);
       }
 
-      // 2. Buscar Inventários exatamente naquele dia
       const inventariosDb = await ctx.db.inventario.findMany({
         where: { 
           criadoEm: { gte: inicioDia, lte: fimDia }
@@ -665,96 +725,245 @@ export const inventoryRouter = createTRPCRouter({
         orderBy: { criadoEm: "desc" }
       });
 
-      // 3. Unidades com volumes ativos (do painel atual)
-      // Como o listarUnidadesComVolumes faz um agrupamento direto no banco legado, 
-      // podemos apenas buscar o total de registros do DB Prisma para unidades_ativas
-      // Para manter coerência e não atrasar, pegaremos o número de inventários únicos realizados no período:
-
-      // 3. Métricas base
-      const inventariosEmAndamento = inventariosDb.filter(inv => inv.status === "ABERTO").length;
-      const inventariosConcluidos = inventariosDb.filter(inv => inv.status === "CONCLUIDO").length;
       const inventariosNoPeriodo = inventariosDb.length;
-      
-      let totalItensConferidos = 0;
-      let divergenciasCriticas = 0;
-      let itensExtraviados = 0;
-      let divergenciasAbertas = 0;
+      const unidadesHoje = Array.from(new Set(inventariosDb.map(i => i.unidade_id)));
 
+      // Para andamento dos inventarios (todas as praças da unidade)
+      const pracasAtivas = unidadesHoje.length > 0 ? await dbReadonly`
+        WITH UltimaMov AS (
+          SELECT DISTINCT ON (h.barra)
+             h.barra, p.unidade AS picking_unidade, p.tipo AS picking_tipo, r.praca
+          FROM historico_volume h
+          INNER JOIN picking p ON h.manifesto = p.id_manifesto AND p.tipo = h.tipo
+          INNER JOIN volumes v ON h.id_volume = v.id_volume
+          INNER JOIN minuta m ON v.id_minuta = m.id_minuta
+          LEFT JOIN rotas r ON m.rota::text = r.id::text
+          WHERE h.data >= NOW() - INTERVAL '90 days'
+            AND m.status NOT IN (6, 13) AND m.cte_numero != 0
+            AND p.unidade = ANY(${unidadesHoje})
+          ORDER BY h.barra, h.id DESC
+        )
+        SELECT picking_unidade, praca
+        FROM UltimaMov
+        WHERE picking_tipo = 2
+        GROUP BY picking_unidade, praca
+      ` : [];
+
+      const pracasPorUnidade = new Map<number, Set<string>>();
+      pracasAtivas.forEach(p => {
+         const id = Number(p.picking_unidade);
+         const set = pracasPorUnidade.get(id) ?? new Set();
+         set.add((p.praca as string) ?? 'SEM_PRACA');
+         pracasPorUnidade.set(id, set);
+      });
+
+      let inventariosConcluidos = 0;
+      let inventariosEmAndamento = 0;
+
+      for (const unid of unidadesHoje) {
+         const invs = inventariosDb.filter(i => i.unidade_id === unid);
+         const hasAberto = invs.some(i => i.status === "ABERTO");
+         const concluidosPracas = new Set(invs.filter(i => i.status === "CONCLUIDO").map(i => i.praca_label || 'SEM_PRACA'));
+         
+         const totalPracasAtivas = pracasPorUnidade.get(unid)?.size ?? 1;
+
+         if (hasAberto) {
+            inventariosEmAndamento++;
+         } else if (concluidosPracas.size >= totalPracasAtivas) {
+            inventariosConcluidos++;
+         } else if (concluidosPracas.size > 0) {
+            inventariosEmAndamento++;
+         }
+      }
+
+      // Faltantes para as divergências do dia
+      // Divergência = Minutas que possuem pelo menos 1 item bipado E pelo menos 1 item faltante
+      const todosBarcodes = inventariosDb.flatMap(inv => inv.itens.map(i => i.codigo_barra));
+      
+      let barcodeMinutaMap = new Map<string, number>();
+      if (todosBarcodes.length > 0) {
+        // Encontrar as minutas associadas aos itens bipados/faltantes
+        const minutasIniciais = await dbReadonly`
+          SELECT DISTINCT v.id_minuta
+          FROM historico_volume h
+          INNER JOIN volumes v ON h.id_volume = v.id_volume
+          WHERE h.barra = ANY(${todosBarcodes})
+        `;
+
+        const minutaIdsIniciais = minutasIniciais.map(m => Number(m.id_minuta)).filter(Boolean);
+
+        // Obter todas as barras dessas minutas
+        const todasBarras = minutaIdsIniciais.length > 0 ? await dbReadonly`
+          SELECT 
+            (SELECT h.barra FROM historico_volume h WHERE h.id_volume = v.id_volume ORDER BY h.id DESC LIMIT 1) as barra
+          FROM volumes v
+          WHERE v.id_minuta = ANY(${minutaIdsIniciais})
+        ` : [];
+
+        const allBarcodesSet = new Set<string>(todosBarcodes);
+        for (const b of todasBarras) {
+          if (b.barra) allBarcodesSet.add(String(b.barra));
+        }
+
+        const allBarcodes = Array.from(allBarcodesSet);
+
+        const detalhes = await dbReadonly`
+          SELECT DISTINCT ON (h.barra)
+            h.barra,
+            v.id_minuta
+          FROM historico_volume h
+          INNER JOIN volumes v ON h.id_volume  = v.id_volume
+          WHERE h.barra = ANY(${allBarcodes})
+          ORDER BY h.barra, h.id DESC
+        `;
+
+        barcodeMinutaMap = new Map(detalhes.map(d => [String(d.barra), Number(d.id_minuta)]));
+      }
+
+      let totalItensConferidos = 0;
+      const minutasComDivergenciaGeral = new Set<number>();
       const inventariosDoDia = [];
 
       for (const inv of inventariosDb) {
-        totalItensConferidos += inv._count.itens;
-        let divergenciasDoInv = 0;
-        let corretosDoInv = 0;
-        let extraviosDoInv = 0;
+        let lidosDoInv = 0;
+        const minutasBipadasDoInv = new Set<number>();
+        const minutasFaltantesDoInv = new Set<number>();
 
         for (const item of inv.itens) {
-          if (item.status_auditoria !== "ENCONTRADO_CORRETO") divergenciasDoInv++;
-          else corretosDoInv++;
-
-          if (item.status_auditoria === "POSSIVEL_EXTRAVIO") {
-            itensExtraviados++;
-            extraviosDoInv++;
+          const mId = barcodeMinutaMap.get(String(item.codigo_barra));
+          if (mId) {
+            if (item.status_auditoria === "FALTANTE") {
+              minutasFaltantesDoInv.add(mId);
+            } else {
+              minutasBipadasDoInv.add(mId);
+              lidosDoInv++;
+              totalItensConferidos++;
+            }
+          } else {
+            if (item.status_auditoria !== "FALTANTE") {
+              lidosDoInv++;
+              totalItensConferidos++;
+            }
           }
         }
 
-        if (divergenciasDoInv > 0) divergenciasAbertas++;
-        if (divergenciasDoInv > 50) divergenciasCriticas++; 
+        let divergenciasDoInv = 0;
+        for (const mId of minutasBipadasDoInv) {
+           if (minutasFaltantesDoInv.has(mId)) {
+              divergenciasDoInv++;
+              minutasComDivergenciaGeral.add(mId);
+           }
+        }
 
         inventariosDoDia.push({
           id: inv.id,
           unidade_id: inv.unidade_id,
           status: inv.status,
-          bipados: inv._count.itens,
-          corretos: corretosDoInv,
-          divergentes: divergenciasDoInv,
-          extravios: extraviosDoInv,
+          bipados: lidosDoInv,
+          divergencias: divergenciasDoInv,
+          praca: inv.praca_label
         });
       }
 
-      // 5. Inventários Atrasados (Abertos há mais de 24h)
-      const dataOntem = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const inventariosAtrasados = inventariosDb.filter(inv => inv.status === "ABERTO" && inv.criadoEm < dataOntem).length;
+      const divergenciasAbertas = minutasComDivergenciaGeral.size;
 
-      // 6. Atividade Recente
-      const atividadeRecente = inventariosDb.slice(0, 5).map(inv => ({
-        id: inv.id,
-        unidade_id: inv.unidade_id,
-        status: inv.status,
-        criadoEm: inv.criadoEm,
-        itens: inv._count.itens,
-      }));
-
-      // 7. Resumo de Conferência (Taxa de Acuracidade por mês, histórico de 6 meses)
-      const seisMesesAtras = new Date();
-      seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 5);
-      seisMesesAtras.setDate(1);
-      seisMesesAtras.setHours(0,0,0,0);
-
-      const invHistoricos = await ctx.db.inventario.findMany({
-        where: { criadoEm: { gte: seisMesesAtras } },
-        include: { itens: { select: { status_auditoria: true } } }
-      });
-
-      const mesesMap = new Map<string, { total: number, corretos: number }>();
-      
-      for (const inv of invHistoricos) {
-        const m = inv.criadoEm.toLocaleString('pt-BR', { month: 'short' });
-        const obj = mesesMap.get(m) ?? { total: 0, corretos: 0 };
-        
-        obj.total += inv.itens.length;
-        obj.corretos += inv.itens.filter(i => i.status_auditoria === "ENCONTRADO_CORRETO").length;
-        mesesMap.set(m, obj);
+      // Unidades sigla para Atividade Recente
+      const siglaMap = new Map<number, string>();
+      if (unidadesHoje.length > 0) {
+         const uns = await dbReadonly`SELECT id_unidade, sigla FROM unidades WHERE id_unidade = ANY(${unidadesHoje})`;
+         uns.forEach(u => siglaMap.set(Number(u.id_unidade), String(u.sigla)));
       }
 
-      const resumoConferencia = Array.from(mesesMap.entries()).map(([mes, dados]) => ({
-        mes,
-        taxa: dados.total > 0 ? (dados.corretos / dados.total) * 100 : 0
-      }));
+      const atividadeRecente = inventariosDb.slice(0, 5).map(inv => {
+        const lidos = inv.itens.filter(i => i.status_auditoria !== "FALTANTE").length;
+        return {
+          id: inv.id,
+          unidade_id: inv.unidade_id,
+          sigla: siglaMap.get(inv.unidade_id) ?? `Unid. ${inv.unidade_id}`,
+          status: inv.status,
+          criadoEm: inv.criadoEm,
+          itens: lidos,
+          praca: inv.praca_label
+        };
+      });
 
-      // 8. Unidades ativas agora (Para o KPI card: pegamos as únicas do banco legado)
-      // Como não podemos juntar consultas tão facilmente e não queremos lentidão, passaremos "0" e faremos 
-      // que o frontend utilize `listarUnidadesComVolumes` para somar a 'ativasAgora'.
+      // Resumo de Conferência: minutas com faltantes por dia do mês atual
+      const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      const invHistoricosMes = await ctx.db.inventario.findMany({
+        where: { criadoEm: { gte: inicioMes } },
+        include: { itens: { select: { status_auditoria: true, codigo_barra: true } } }
+      });
+
+      const todosMesBarcodes = invHistoricosMes.flatMap(inv => inv.itens.map(i => i.codigo_barra));
+      
+      let barcodeMesMinutaMap = new Map<string, number>();
+      if (todosMesBarcodes.length > 0) {
+         const minutasIniciais = await dbReadonly`
+            SELECT DISTINCT v.id_minuta
+            FROM historico_volume h
+            INNER JOIN volumes v ON h.id_volume = v.id_volume
+            WHERE h.barra = ANY(${todosMesBarcodes})
+         `;
+         const minutaIdsIniciais = minutasIniciais.map(m => Number(m.id_minuta)).filter(Boolean);
+         const todasBarras = minutaIdsIniciais.length > 0 ? await dbReadonly`
+            SELECT 
+               (SELECT h.barra FROM historico_volume h WHERE h.id_volume = v.id_volume ORDER BY h.id DESC LIMIT 1) as barra
+            FROM volumes v
+            WHERE v.id_minuta = ANY(${minutaIdsIniciais})
+         ` : [];
+         const allBarcodesSet = new Set<string>(todosMesBarcodes);
+         for (const b of todasBarras) {
+            if (b.barra) allBarcodesSet.add(String(b.barra));
+         }
+         const allBarcodes = Array.from(allBarcodesSet);
+         const detalhes = await dbReadonly`
+            SELECT DISTINCT ON (h.barra) h.barra, v.id_minuta
+            FROM historico_volume h
+            INNER JOIN volumes v ON h.id_volume = v.id_volume
+            WHERE h.barra = ANY(${allBarcodes})
+            ORDER BY h.barra, h.id DESC
+         `;
+         barcodeMesMinutaMap = new Map(detalhes.map(d => [String(d.barra), Number(d.id_minuta)]));
+      }
+
+      const diasMap = new Map<number, Set<number>>();
+      for (const inv of invHistoricosMes) {
+         const dia = inv.criadoEm.getDate();
+         const minutasSet = diasMap.get(dia) ?? new Set<number>();
+         
+         const bipadasSet = new Set<number>();
+         const faltantesSet = new Set<number>();
+         
+         for (const item of inv.itens) {
+            const mId = barcodeMesMinutaMap.get(String(item.codigo_barra));
+            if (mId) {
+               if (item.status_auditoria === "FALTANTE") {
+                  faltantesSet.add(mId);
+               } else {
+                  bipadasSet.add(mId);
+               }
+            }
+         }
+         
+         for (const mId of bipadasSet) {
+            if (faltantesSet.has(mId)) {
+               minutasSet.add(mId);
+            }
+         }
+         
+         diasMap.set(dia, minutasSet);
+      }
+
+      const resumoConferencia = [];
+      const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+      const limite = (hoje.getMonth() === inicioDia.getMonth() && hoje.getFullYear() === inicioDia.getFullYear()) ? hoje.getDate() : ultimoDiaMes;
+      
+      for (let i = 1; i <= limite; i++) {
+         resumoConferencia.push({
+            dia: i,
+            divergencias: diasMap.get(i)?.size ?? 0
+         });
+      }
 
       return {
         kpis: {
@@ -762,13 +971,7 @@ export const inventoryRouter = createTRPCRouter({
           inventariosEmAndamento,
           inventariosConcluidos,
           divergenciasAbertas,
-          divergenciasCriticas,
           itensConferidos: totalItensConferidos,
-        },
-        pontosAtencao: {
-          divergenciasCriticas,
-          itensExtraviados,
-          inventariosAtrasados
         },
         atividadeRecente,
         resumoConferencia,

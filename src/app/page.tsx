@@ -333,7 +333,7 @@ export default function Home() {
               <div>
                 <p className="text-sm font-medium text-slate-500 mb-1">Divergências no dia</p>
                 <p className="text-3xl font-bold text-slate-900">{loadingDash ? "..." : dashboard?.kpis.divergenciasAbertas}</p>
-                <p className="text-xs text-slate-400 mt-1">{loadingDash ? "..." : dashboard?.kpis.divergenciasCriticas} críticas</p>
+                <p className="text-xs text-slate-400 mt-1">minutas c/ faltantes</p>
               </div>
             </div>
 
@@ -352,8 +352,76 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Row 2: Andamento e Pontos de Atenção */}
+          {/* Row 2: Resumo de conferência (Full Width) */}
+          <div className="grid grid-cols-1 gap-6">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
+              <h2 className="text-lg font-bold text-slate-900">Resumo de conferência</h2>
+              <p className="text-sm text-slate-500 mb-8">Divergências (minutas c/ faltantes) por dia do mês atual</p>
+
+              <div className="flex-1 flex items-end justify-between gap-2 sm:gap-4 h-48 mt-auto pt-6 border-b border-slate-100 relative">
+                {loadingDash ? (
+                  <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">Carregando dados...</div>
+                ) : (
+                  (() => {
+                    const maxDiv = Math.max(...(dashboard?.resumoConferencia.map(i => i.divergencias) ?? []), 1);
+                    return dashboard?.resumoConferencia.map((item, idx) => (
+                      <div key={idx} className="flex flex-col items-center gap-2 group w-full h-full justify-end relative">
+                        <div 
+                          className={`w-full max-w-[30px] rounded-t-sm transition-all relative overflow-hidden ${item.divergencias > 0 ? 'bg-orange-500 hover:bg-orange-600' : 'bg-slate-200'}`} 
+                          style={{ 
+                            height: item.divergencias > 0 ? `${(item.divergencias / maxDiv) * 100}%` : '4px', 
+                            minHeight: '4px' 
+                          }}
+                        >
+                          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/10"></div>
+                        </div>
+                        <span className="text-[10px] sm:text-xs font-medium text-slate-400">{item.dia}</span>
+                        <div className="absolute -top-8 bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                          {item.divergencias} divergência(s)
+                        </div>
+                      </div>
+                    ));
+                  })()
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Atividade e Gráfico */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Atividade recente */}
+            <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+              <h2 className="text-lg font-bold text-slate-900 mb-6">Atividade recente</h2>
+              <div className="space-y-6">
+                {loadingDash ? (
+                  <div className="text-sm text-slate-400">Carregando...</div>
+                ) : dashboard?.atividadeRecente.length === 0 ? (
+                  <div className="text-sm text-slate-400">Nenhuma atividade registrada.</div>
+                ) : (
+                  dashboard?.atividadeRecente.map((atv, idx) => (
+                    <div key={idx} className="flex gap-4">
+                      <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-slate-400">
+                        {atv.status === "CONCLUIDO" ? (
+                          <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        ) : (
+                          <IconBox />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {atv.status === "CONCLUIDO" ? "Inventário concluído" : "Inventário iniciado"}
+                        </p>
+                        <p className="text-xs text-slate-500">{atv.sigla} · Praça: {atv.praca || 'Geral'} · {atv.itens} lidos</p>
+                      </div>
+                      <span className="text-xs text-slate-400 whitespace-nowrap">
+                        {new Date(atv.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
             {/* Andamento dos inventários */}
             <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
               <div className="flex justify-between items-center mb-8">
@@ -420,120 +488,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-
-            {/* Pontos de atenção */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Pontos de atenção</h2>
-                  <p className="text-sm text-slate-500">Itens que precisam de acompanhamento</p>
-                </div>
-              </div>
-
-              <div className="space-y-4 flex-1">
-                {/* Críticas */}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Divergências críticas</p>
-                      <p className="text-xs text-slate-500">ocorrências acima do limite</p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-slate-900">{loadingDash ? "..." : dashboard?.pontosAtencao.divergenciasCriticas}</span>
-                </div>
-
-                {/* Extraviados */}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Itens extraviados</p>
-                      <p className="text-xs text-slate-500">itens sem localização</p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-slate-900">{loadingDash ? "..." : dashboard?.pontosAtencao.itensExtraviados}</span>
-                </div>
-
-                {/* Atrasados */}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Inventários atrasados</p>
-                      <p className="text-xs text-slate-500">sem atualização {'>'} 24h</p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-slate-900">{loadingDash ? "..." : dashboard?.pontosAtencao.inventariosAtrasados}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Row 3: Atividade e Gráfico */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Atividade recente */}
-            <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-              <h2 className="text-lg font-bold text-slate-900 mb-6">Atividade recente</h2>
-              <div className="space-y-6">
-                {loadingDash ? (
-                  <div className="text-sm text-slate-400">Carregando...</div>
-                ) : dashboard?.atividadeRecente.length === 0 ? (
-                  <div className="text-sm text-slate-400">Nenhuma atividade registrada.</div>
-                ) : (
-                  dashboard?.atividadeRecente.map((atv, idx) => (
-                    <div key={idx} className="flex gap-4">
-                      <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-slate-400">
-                        {atv.status === "CONCLUIDO" ? (
-                          <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                        ) : (
-                          <IconBox />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {atv.status === "CONCLUIDO" ? "Inventário concluído" : "Inventário iniciado"}
-                        </p>
-                        <p className="text-xs text-slate-500">Unidade {atv.unidade_id} · {atv.itens} itens</p>
-                      </div>
-                      <span className="text-xs text-slate-400 whitespace-nowrap">
-                        {new Date(atv.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Resumo de conferência */}
-            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
-              <h2 className="text-lg font-bold text-slate-900">Resumo de conferência</h2>
-              <p className="text-sm text-slate-500 mb-8">Performance de acuracidade média mensal</p>
-
-              <div className="flex-1 flex items-end justify-between gap-2 h-48 mt-auto pt-6 border-b border-slate-100 relative">
-                {loadingDash ? (
-                  <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">Carregando dados...</div>
-                ) : (
-                  dashboard?.resumoConferencia.map((item, idx) => (
-                    <div key={idx} className="flex flex-col items-center gap-2 group w-full h-full justify-end relative">
-                      <div className="w-full max-w-[40px] bg-green-600 rounded-t-sm transition-all relative overflow-hidden hover:bg-green-700" style={{ height: `${item.taxa}%`, minHeight: '4px' }}>
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/10"></div>
-                      </div>
-                      <span className="text-xs font-medium text-slate-500 uppercase">{item.mes}</span>
-                      <div className="absolute -top-8 bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                        {item.taxa.toFixed(1)}%
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
           </div>
 
           {/* Row 4: Unidades em Cards (Layout Antigo) */}
@@ -590,10 +544,8 @@ export default function Home() {
                     <th className="px-6 py-4">Unidade</th>
                     <th className="px-6 py-4">Status no Dia</th>
                     <th className="px-6 py-4 text-center">Esperado (Pátio)</th>
-                    <th className="px-6 py-4 text-center">Bipados</th>
-                    <th className="px-6 py-4 text-center">Corretos</th>
+                    <th className="px-6 py-4 text-center">Bipados (Lidos)</th>
                     <th className="px-6 py-4 text-center text-orange-600">Divergências</th>
-                    <th className="px-6 py-4 text-center text-red-600">Extravios</th>
                     <th className="px-6 py-4 text-right">Ação</th>
                   </tr>
                 </thead>
@@ -609,7 +561,11 @@ export default function Home() {
                       u.sigla.toLowerCase().includes(busca.toLowerCase()) || 
                       String(u.id_unidade).includes(busca)
                     ).map((u) => {
-                      const inv = dashboard?.inventariosDoDia?.find(i => i.unidade_id === u.id_unidade);
+                      const invsUnit = dashboard?.inventariosDoDia?.filter(i => i.unidade_id === u.id_unidade) ?? [];
+                      const hasAny = invsUnit.length > 0;
+                      const hasAberto = invsUnit.some(i => i.status === "ABERTO");
+                      const totalBipados = invsUnit.reduce((acc, i) => acc + i.bipados, 0);
+                      const totalDivergencias = invsUnit.reduce((acc, i) => acc + i.divergencias, 0);
                       
                       return (
                         <tr key={u.id_unidade} className="hover:bg-slate-50/50 transition-colors">
@@ -618,13 +574,13 @@ export default function Home() {
                             <p className="text-xs text-slate-500">{u.sigla}</p>
                           </td>
                           <td className="px-6 py-4">
-                            {!inv ? (
+                            {!hasAny ? (
                               dataStr === hojeStr ? (
                                 <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-600">Não Iniciado</span>
                               ) : (
                                 <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-400">Sem Histórico</span>
                               )
-                            ) : inv.status === "EM_ANDAMENTO" || inv.status === "ABERTO" ? (
+                            ) : hasAberto ? (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-green-100 text-green-800">Em Andamento</span>
                             ) : (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700">Concluído</span>
@@ -633,17 +589,13 @@ export default function Home() {
                           
                           <td className="px-6 py-4 text-center font-medium text-slate-700">{u.no_patio}</td>
                           
-                          {inv ? (
+                          {hasAny ? (
                             <>
-                              <td className="px-6 py-4 text-center font-medium text-slate-700">{inv.bipados}</td>
-                              <td className="px-6 py-4 text-center font-medium text-emerald-600">{inv.corretos}</td>
-                              <td className="px-6 py-4 text-center font-medium text-orange-600">{inv.divergentes}</td>
-                              <td className="px-6 py-4 text-center font-medium text-red-600">{inv.extravios}</td>
+                              <td className="px-6 py-4 text-center font-medium text-slate-700">{totalBipados}</td>
+                              <td className="px-6 py-4 text-center font-medium text-orange-600">{totalDivergencias}</td>
                             </>
                           ) : (
                             <>
-                              <td className="px-6 py-4 text-center text-slate-400">-</td>
-                              <td className="px-6 py-4 text-center text-slate-400">-</td>
                               <td className="px-6 py-4 text-center text-slate-400">-</td>
                               <td className="px-6 py-4 text-center text-slate-400">-</td>
                             </>
@@ -651,7 +603,7 @@ export default function Home() {
                           
                           <td className="px-6 py-4 text-right">
                             <Link href={`/unidade/${u.id_unidade}`} className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors">
-                              {inv ? "Abrir Praças ↗" : "Iniciar Praças +"}
+                              {hasAny ? "Abrir Praças ↗" : "Iniciar Praças +"}
                             </Link>
                           </td>
                         </tr>

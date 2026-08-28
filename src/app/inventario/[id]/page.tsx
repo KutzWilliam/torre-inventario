@@ -10,15 +10,7 @@ import Image from "next/image";
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 
-function StatusBadge({ status, cteZero }: { status: string; cteZero?: boolean }) {
-  if (cteZero) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200/60 whitespace-nowrap">
-        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-        CTE = 0
-      </span>
-    );
-  }
+function StatusBadge({ status }: { status: string }) {
   if (status === "CARREGANDO") {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-200/60 whitespace-nowrap">
@@ -30,26 +22,10 @@ function StatusBadge({ status, cteZero }: { status: string; cteZero?: boolean })
       </span>
     );
   }
-  if (status === "ENCONTRADO_CORRETO") {
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200/60 whitespace-nowrap">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-        Correto
-      </span>
-    );
-  }
-  if (status === "POSSIVEL_EXTRAVIO") {
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700 border border-purple-200/60 whitespace-nowrap">
-        <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-        Extravio?
-      </span>
-    );
-  }
   return (
-    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200/60 whitespace-nowrap">
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-      Sobra
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200/60 whitespace-nowrap">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+      Lido
     </span>
   );
 }
@@ -61,27 +37,34 @@ type ItemSimples = {
   codigo_barra: string;
   status_auditoria: string;
   criadoEm: Date;
+  id_minuta: number | null;
+  total_volumes: number | null;
 };
 
 // ─── Linha da tabela (simples — sem consulta legado) ──────────────────────
-function ItemRow({ item, isNew, onRemover }: { item: ItemSimples; isNew?: boolean; onRemover: (id: string) => void }) {
-  const isExtravio = item.status_auditoria === "POSSIVEL_EXTRAVIO";
-
+function ItemRow({ 
+  item, 
+  isNew, 
+  lidos,
+  onRemover 
+}: { 
+  item: ItemSimples; 
+  isNew?: boolean; 
+  lidos: number;
+  onRemover: (id: string) => void 
+}) {
   return (
     <tr
       className={[
         "border-b border-slate-100 transition-all duration-300",
-        isNew ? "bg-indigo-50/70" : isExtravio ? "bg-purple-50/40" : "hover:bg-slate-50/60",
+        isNew ? "bg-indigo-50/70" : "hover:bg-slate-50/60",
       ].join(" ")}
     >
       {/* Código de Barras */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <div
-            className={[
-              "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-              isExtravio ? "bg-purple-100 text-purple-600" : "bg-slate-100 text-slate-500",
-            ].join(" ")}
+            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-slate-100 text-slate-500"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -99,6 +82,37 @@ function ItemRow({ item, isNew, onRemover }: { item: ItemSimples; isNew?: boolea
             </p>
           </div>
         </div>
+      </td>
+
+      {/* Minuta */}
+      <td className="px-4 py-3 whitespace-nowrap">
+        {item.id_minuta ? (
+          <span className="font-mono text-xs bg-slate-100 px-2 py-1 rounded-md text-slate-700 font-medium border border-slate-200">
+            {item.id_minuta}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">-</span>
+        )}
+      </td>
+
+      {/* Total Minuta */}
+      <td className="px-4 py-3 whitespace-nowrap">
+        {item.total_volumes ? (
+          <span className="text-xs text-slate-600 font-medium">{item.total_volumes}</span>
+        ) : (
+          <span className="text-xs text-slate-400">-</span>
+        )}
+      </td>
+
+      {/* Lidos */}
+      <td className="px-4 py-3 whitespace-nowrap">
+        {item.id_minuta && item.total_volumes ? (
+          <span className="text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200/60 px-2.5 py-1 rounded-full">
+            {lidos} / {item.total_volumes}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">-</span>
+        )}
       </td>
 
       {/* Status */}
@@ -130,6 +144,8 @@ export default function InventarioPage() {
   const inventarioId = typeof params.id === "string" ? params.id : "";
 
   const [codigo, setCodigo] = useState("");
+  const [modalManualAberto, setModalManualAberto] = useState(false);
+  const [codigoManual, setCodigoManual] = useState("");
   const [lastScannedId, setLastScannedId] = useState<string | null>(null);
   const [duplicado, setDuplicado] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -193,6 +209,8 @@ export default function InventarioPage() {
             codigo_barra: novoItem.codigoBarra,
             status_auditoria: "CARREGANDO", // status temporário provisório
             criadoEm: new Date(),
+            id_minuta: null,
+            total_volumes: null,
           },
           ...previousItens,
         ]);
@@ -225,11 +243,14 @@ export default function InventarioPage() {
 
   // Mantém o foco no input sempre que possível
   useEffect(() => {
+    if (modalManualAberto) return;
     inputRef.current?.focus();
-    const handleClick = () => inputRef.current?.focus();
+    const handleClick = () => {
+      if (!modalManualAberto) inputRef.current?.focus();
+    };
     window.addEventListener("click", handleClick);
     return () => window.removeEventListener("click", handleClick);
-  }, []);
+  }, [modalManualAberto]);
 
   // Re-foca o input sempre que a lista de itens for atualizada (após invalidate)
   useEffect(() => {
@@ -264,10 +285,22 @@ export default function InventarioPage() {
   };
 
   // ─── Contadores (simples, só por status) ───────────────────────────────────
-  const todosItens    = (itens ?? []) as ItemSimples[];
-  const itensCorretos = todosItens.filter((i) => i.status_auditoria === "ENCONTRADO_CORRETO");
-  const itensSobra    = todosItens.filter((i) => i.status_auditoria === "SOBRA_NA_BASE");
-  const itensExtravio = todosItens.filter((i) => i.status_auditoria === "POSSIVEL_EXTRAVIO");
+  const todosItens = (itens ?? []) as ItemSimples[];
+  
+  // Calcular lidos por minuta (sequencial: qual foi o 1º, 2º, 3º...)
+  const sequencialPorItem = new Map<string, number>();
+  const contadorMinuta = new Map<number, number>();
+
+  // Iterar de trás pra frente (dos mais antigos para os mais novos)
+  for (let i = todosItens.length - 1; i >= 0; i--) {
+    const item = todosItens[i];
+    if (item.id_minuta) {
+      const atual = contadorMinuta.get(item.id_minuta) || 0;
+      const proximo = atual + 1;
+      contadorMinuta.set(item.id_minuta, proximo);
+      sequencialPorItem.set(item.id, proximo);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
@@ -327,49 +360,54 @@ export default function InventarioPage() {
         </header>
 
         {/* ── Contadores resumo ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: "Total Bipado", value: todosItens.length, color: "indigo", desc: "neste inventário" },
-            { label: "Corretos", value: itensCorretos.length, color: "emerald", desc: "no local certo" },
-            { label: "Sobras", value: itensSobra.length, color: "amber", desc: "não esperados" },
-            { label: "Extravios?", value: itensExtravio.length, color: "purple", desc: "minuta finalizada" },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className="bg-white rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
-            >
-              <p className="text-2xl font-black text-slate-800">{item.value}</p>
-              <p className="text-xs font-semibold text-slate-600">{item.label}</p>
-              <p className="text-[10px] text-slate-400">{item.desc}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 shadow-sm md:col-span-1">
+            <p className="text-2xl font-black text-slate-800">{todosItens.length}</p>
+            <p className="text-xs font-semibold text-slate-600">Total Bipado</p>
+            <p className="text-[10px] text-slate-400">neste inventário</p>
+          </div>
         </div>
 
         {/* ── Input de bipagem ── */}
-        <form onSubmit={handleSubmit} className="relative group">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-              <svg className="w-6 h-6 text-slate-400 group-focus-within:text-indigo-500 transition-colors"
-                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-          </div>
-          <input
-            ref={inputRef}
-            type="text"
-            value={codigo}
-            onChange={handleChange}
-            placeholder="Aguardando código de barras..."
-            className={[
-              "block w-full pl-14 pr-4 py-5 text-xl font-mono text-slate-900 bg-white border-2 rounded-2xl focus:ring-0 shadow-sm transition-all placeholder:text-slate-400 placeholder:font-sans",
-              duplicado
-                ? "border-red-400 animate-pulse focus:border-red-400"
-                : "border-slate-200 focus:border-indigo-500",
-            ].join(" ")}
-            autoFocus
-            autoComplete="off"
-          />
-          <button type="submit" className="sr-only">Bipar</button>
-        </form>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <form onSubmit={handleSubmit} className="relative group flex-1">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                <svg className="w-6 h-6 text-slate-400 group-focus-within:text-indigo-500 transition-colors"
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+            </div>
+            <input
+              ref={inputRef}
+              type="text"
+              value={codigo}
+              onChange={handleChange}
+              placeholder="Aguardando código de barras..."
+              className={[
+                "block w-full pl-14 pr-4 py-5 text-xl font-mono text-slate-900 bg-white border-2 rounded-2xl focus:ring-0 shadow-sm transition-all placeholder:text-slate-400 placeholder:font-sans",
+                duplicado
+                  ? "border-red-400 animate-pulse focus:border-red-400"
+                  : "border-slate-200 focus:border-indigo-500",
+              ].join(" ")}
+              autoFocus
+              autoComplete="off"
+            />
+            <button type="submit" className="sr-only">Bipar</button>
+          </form>
+          <button
+            type="button"
+            onClick={() => {
+              setModalManualAberto(true);
+              setCodigoManual("");
+            }}
+            className="px-6 py-5 bg-white text-indigo-600 rounded-2xl font-semibold hover:bg-indigo-50 transition-colors border-2 border-indigo-100 flex items-center justify-center gap-2 whitespace-nowrap"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Digitação Manual
+          </button>
+        </div>
 
         {/* ── Banner de duplicata ── */}
         <div
@@ -399,11 +437,6 @@ export default function InventarioPage() {
               <span className="text-xs font-medium text-slate-500 bg-slate-200 px-2.5 py-1 rounded-full">
                 {todosItens.length} volume{todosItens.length !== 1 ? "s" : ""}
               </span>
-              {itensExtravio.length > 0 && (
-                <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2.5 py-1 rounded-full">
-                  {itensExtravio.length} extravios?
-                </span>
-              )}
             </div>
           </div>
 
@@ -424,6 +457,9 @@ export default function InventarioPage() {
                 <thead className="sticky top-0 bg-white z-10 border-b border-slate-100">
                   <tr className="text-[10px] uppercase tracking-wider text-slate-400">
                     <th className="px-4 py-3 font-semibold">Código de Barras</th>
+                    <th className="px-4 py-3 font-semibold">Minuta</th>
+                    <th className="px-4 py-3 font-semibold">Total Minuta</th>
+                    <th className="px-4 py-3 font-semibold">Lidos</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
                     <th className="px-4 py-3 font-semibold"></th>
                   </tr>
@@ -434,6 +470,7 @@ export default function InventarioPage() {
                       key={item.id}
                       item={item}
                       isNew={item.id === lastScannedId}
+                      lidos={sequencialPorItem.get(item.id) || 0}
                       onRemover={handleRemover}
                     />
                   ))}
@@ -473,6 +510,49 @@ export default function InventarioPage() {
         </div>
 
       </div>
+
+      {/* Modal Digitação Manual */}
+      {modalManualAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl transform transition-all">
+            <h3 className="text-xl font-bold text-slate-800 mb-2">Digitar Código Manual</h3>
+            <p className="text-sm text-slate-500 mb-6">Insira o código de barras que não pôde ser lido pelo scanner.</p>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (codigoManual.trim()) {
+                submitCodigo(codigoManual);
+                setModalManualAberto(false);
+              }
+            }}>
+              <input
+                type="text"
+                autoFocus
+                value={codigoManual}
+                onChange={(e) => setCodigoManual(e.target.value)}
+                placeholder="Ex: 000000000000"
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-0 mb-6 font-mono text-lg"
+              />
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setModalManualAberto(false)}
+                  className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!codigoManual.trim()}
+                  className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+                >
+                  Salvar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

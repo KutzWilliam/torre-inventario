@@ -44,31 +44,18 @@ type ItemInventario = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "ENCONTRADO_CORRETO")
+  if (status === "FALTANTE") {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/50 whitespace-nowrap">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-        Correto
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200/50 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+        Faltante
       </span>
     );
-  if (status === "POSSIVEL_EXTRAVIO")
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200/50 whitespace-nowrap">
-        <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-        Extravio?
-      </span>
-    );
-  if (status === "SOBRA_NA_BASE")
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/50 whitespace-nowrap">
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-        Sobra
-      </span>
-    );
+  }
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200/50 whitespace-nowrap">
-      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-      Faltante
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/50 whitespace-nowrap">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+      Lido
     </span>
   );
 }
@@ -156,13 +143,14 @@ function DivRow({ item }: { item: ItemInventario }) {
 function MinutaGroup({ idMinuta, itens }: { idMinuta: string; itens: ItemInventario[] }) {
   const [expanded, setExpanded] = useState(false);
 
-  const esperados = itens.filter(i => i.status_auditoria === "ENCONTRADO_CORRETO" || i.status_auditoria === "FALTANTE").length;
-  const bipados = itens.filter(i => i.status_auditoria === "ENCONTRADO_CORRETO" || i.status_auditoria === "SOBRA_NA_BASE" || i.status_auditoria === "POSSIVEL_EXTRAVIO").length;
+  const bipados = itens.filter(i => i.status_auditoria !== "FALTANTE").length;
   const faltantes = itens.filter(i => i.status_auditoria === "FALTANTE").length;
-  const corretos = itens.filter(i => i.status_auditoria === "ENCONTRADO_CORRETO").length;
-  const sobras = itens.filter(i => i.status_auditoria === "SOBRA_NA_BASE").length;
-
   const primeiroDetalhe = itens.find(i => i.detalhe)?.detalhe;
+  
+  // Calcular o total da minuta com base nos volumes retornados se não tiver o dado direto,
+  // mas primeiroDetalhe?.total_volumes deve estar presente para minutas que vieram do banco legado.
+  const totalMinuta = primeiroDetalhe?.total_volumes ?? (bipados + faltantes);
+
   const rota = primeiroDetalhe?.destino_nome && primeiroDetalhe?.origem_nome
     ? `${primeiroDetalhe.origem_nome} -> ${primeiroDetalhe.destino_nome}`
     : primeiroDetalhe?.destino_nome ?? primeiroDetalhe?.origem_nome ?? "—";
@@ -194,30 +182,18 @@ function MinutaGroup({ idMinuta, itens }: { idMinuta: string; itens: ItemInventa
           </div>
         </div>
 
-        <div className="flex items-center gap-4 sm:gap-8 flex-wrap">
+        <div className="flex items-center gap-6 sm:gap-12 flex-wrap">
           <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5" title="Total de volumes esperados para esta praça">Esperados</p>
-            <p className="text-lg font-black text-slate-700">{esperados}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5" title="Total de volumes da minuta (todas as praças)">Qtd. Minuta</p>
-            <p className="text-lg font-black text-slate-700">{primeiroDetalhe?.total_volumes ?? "—"}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Qtd. Minuta</p>
+            <p className="text-lg font-black text-slate-700">{totalMinuta}</p>
           </div>
           <div className="text-center">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Bipados</p>
-            <p className="text-lg font-black text-slate-700">{bipados}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Corretos</p>
-            <p className="text-lg font-black text-emerald-600">{corretos}</p>
+            <p className="text-lg font-black text-emerald-600">{bipados}</p>
           </div>
           <div className="text-center">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Faltantes</p>
             <p className={`text-lg font-black ${faltantes > 0 ? 'text-red-600' : 'text-slate-300'}`}>{faltantes}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Sobras</p>
-            <p className={`text-lg font-black ${sobras > 0 ? 'text-amber-600' : 'text-slate-300'}`}>{sobras}</p>
           </div>
         </div>
       </div>
@@ -267,33 +243,12 @@ export default function RelatorioInventarioPage() {
     { enabled: !!unidadeId }
   );
 
-  const [filtroSituacao, setFiltroSituacao] = useState<string>("");
-
   const divergenciasSeguras = data?.divergencias ?? [];
-
-  // Obter lista única de situações para o filtro (só de faltantes/extravios/sobras)
-  const situacoesUnicas = useMemo(() => {
-    const situacoes = new Set<string>();
-    divergenciasSeguras.forEach(d => {
-      if (d.status_auditoria !== "ENCONTRADO_CORRETO" && d.ultima_ocorrencia?.descricao) {
-        situacoes.add(d.ultima_ocorrencia.descricao);
-      }
-    });
-    return Array.from(situacoes).sort();
-  }, [divergenciasSeguras]);
-
-  const divergenciasFiltradas = useMemo(() => {
-    if (!filtroSituacao) return divergenciasSeguras;
-    return divergenciasSeguras.filter(d => 
-      d.status_auditoria === "ENCONTRADO_CORRETO" || 
-      d.ultima_ocorrencia?.descricao === filtroSituacao
-    );
-  }, [divergenciasSeguras, filtroSituacao]);
 
   // Agrupar por minuta
   const minutasMap = useMemo(() => {
     const map = new Map<string, ItemInventario[]>();
-    divergenciasFiltradas.forEach(item => {
+    divergenciasSeguras.forEach(item => {
       const idMinuta = item.detalhe?.id_minuta ? String(item.detalhe.id_minuta) : "SEM_MINUTA";
       if (!map.has(idMinuta)) map.set(idMinuta, []);
       map.get(idMinuta)!.push(item as any);
@@ -309,7 +264,13 @@ export default function RelatorioInventarioPage() {
       idMinuta: chave,
       itens: map.get(chave)!
     }));
-  }, [divergenciasFiltradas]);
+  }, [divergenciasSeguras]);
+
+  const minutasBipadas = useMemo(() => {
+    return minutasMap.filter(minuta => 
+      minuta.itens.some(item => item.status_auditoria !== "FALTANTE")
+    );
+  }, [minutasMap]);
 
   if (isLoading) {
     return (
@@ -319,7 +280,7 @@ export default function RelatorioInventarioPage() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <p className="text-slate-500 font-medium animate-pulse">Gerando relatório detalhado...</p>
+          <p className="text-slate-500 font-medium animate-pulse">Gerando relatório de inventário...</p>
         </div>
       </div>
     );
@@ -339,7 +300,7 @@ export default function RelatorioInventarioPage() {
     );
   }
 
-  const { inventario, contadores } = data;
+  const { inventario } = data;
 
   const exportarParaExcel = () => {
     if (!divergenciasSeguras.length) return;
@@ -349,11 +310,7 @@ export default function RelatorioInventarioPage() {
         ? `${item.detalhe.origem_nome} → ${item.detalhe.destino_nome}`
         : item.detalhe?.destino_nome ?? item.detalhe?.origem_nome ?? "—";
 
-      let statusFormatado = item.status_auditoria;
-      if (item.status_auditoria === "POSSIVEL_EXTRAVIO") statusFormatado = "Possível Extravio";
-      if (item.status_auditoria === "SOBRA_NA_BASE") statusFormatado = "Sobra na Base";
-      if (item.status_auditoria === "FALTANTE") statusFormatado = "Faltante";
-      if (item.status_auditoria === "ENCONTRADO_CORRETO") statusFormatado = "Correto";
+      let statusFormatado = item.status_auditoria === "FALTANTE" ? "Faltante" : "Lido";
 
       return {
         "Minuta": item.detalhe?.id_minuta ?? "—",
@@ -380,6 +337,13 @@ export default function RelatorioInventarioPage() {
     XLSX.writeFile(wb, nomeArquivo);
   };
 
+  // Calcular métricas gerais
+  const totalBipados = minutasBipadas.reduce((acc, m) => acc + m.itens.filter(i => i.status_auditoria !== "FALTANTE").length, 0);
+  const totalMinutas = minutasBipadas.length > 0 && minutasBipadas[minutasBipadas.length - 1].idMinuta === "SEM_MINUTA" 
+    ? minutasBipadas.length - 1 
+    : minutasBipadas.length;
+  const totalFaltantes = minutasBipadas.reduce((acc, m) => acc + m.itens.filter(i => i.status_auditoria === "FALTANTE").length, 0);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 lg:p-8 font-sans w-full">
       <div className="w-full max-w-[1600px] mx-auto space-y-6 sm:space-y-8">
@@ -396,7 +360,7 @@ export default function RelatorioInventarioPage() {
             <div className="flex items-center gap-3 mb-2">
               <Image src="/cropped-icon.png" alt="Princesa" width={32} height={32} className="h-8 w-8" />
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                Relatório de Fechamento
+                Relatório de Inventário
               </span>
               {inventario.status === "CONCLUIDO" ? (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
@@ -446,39 +410,25 @@ export default function RelatorioInventarioPage() {
           </div>
         </header>
 
-        {/* Cards de Métricas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white rounded-3xl shadow-sm border border-emerald-100 p-6">
-            <h3 className="text-emerald-800 font-medium text-sm flex items-center">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
-              Corretos
+        {/* Cards de Métricas Simples */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center text-center">
+            <h3 className="text-slate-500 font-semibold text-sm uppercase tracking-wider mb-2">
+              Volumes Bipados
             </h3>
-            <p className="text-4xl font-bold text-emerald-900 mt-3">{contadores.corretos}</p>
-            <p className="text-sm text-emerald-600 mt-1">Bipados no local certo</p>
+            <p className="text-5xl font-black text-indigo-600">{totalBipados}</p>
           </div>
-          <div className="bg-white rounded-3xl shadow-sm border border-amber-100 p-6">
-            <h3 className="text-amber-800 font-medium text-sm flex items-center">
-              <span className="w-2 h-2 rounded-full bg-amber-500 mr-2"></span>
-              Sobras
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center text-center">
+            <h3 className="text-slate-500 font-semibold text-sm uppercase tracking-wider mb-2">
+              Qtd. de Minutas
             </h3>
-            <p className="text-4xl font-bold text-amber-900 mt-3">{contadores.sobras}</p>
-            <p className="text-sm text-amber-600 mt-1">Fisicamente aqui, não deveriam</p>
+            <p className="text-5xl font-black text-slate-800">{totalMinutas}</p>
           </div>
-          <div className="bg-white rounded-3xl shadow-sm border border-red-100 p-6">
-            <h3 className="text-red-800 font-medium text-sm flex items-center">
-              <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
-              Faltantes
+          <div className="bg-white rounded-3xl shadow-sm border border-red-100 p-6 flex flex-col items-center justify-center text-center">
+            <h3 className="text-red-600 font-semibold text-sm uppercase tracking-wider mb-2">
+              Volumes Faltantes
             </h3>
-            <p className="text-4xl font-bold text-red-900 mt-3">{contadores.faltantes}</p>
-            <p className="text-sm text-red-600 mt-1">Deveriam estar, não achados</p>
-          </div>
-          <div className="bg-white rounded-3xl shadow-sm border border-purple-100 p-6">
-            <h3 className="text-purple-800 font-medium text-sm flex items-center">
-              <span className="w-2 h-2 rounded-full bg-purple-500 mr-2"></span>
-              Possível Extravio
-            </h3>
-            <p className="text-4xl font-bold text-purple-900 mt-3">{contadores.extravios}</p>
-            <p className="text-sm text-purple-600 mt-1">Bipado mas já finalizado/entregue</p>
+            <p className="text-5xl font-black text-red-600">{totalFaltantes}</p>
           </div>
         </div>
 
@@ -489,27 +439,15 @@ export default function RelatorioInventarioPage() {
               <h2 className="text-2xl font-bold text-slate-800">Agrupamento por Minuta</h2>
               <p className="text-slate-500">Detalhes de todos os volumes conferidos nesta praça/unidade.</p>
             </div>
-            {situacoesUnicas.length > 0 && (
-              <select
-                value={filtroSituacao}
-                onChange={(e) => setFiltroSituacao(e.target.value)}
-                className="px-4 py-2 text-sm border border-slate-200 rounded-xl bg-white text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500"
-              >
-                <option value="">Filtrar Faltantes por Ocorrência (Todas)</option>
-                {situacoesUnicas.map(sit => (
-                  <option key={sit} value={sit}>{sit}</option>
-                ))}
-              </select>
-            )}
           </div>
 
-          {minutasMap.length === 0 ? (
+          {minutasBipadas.length === 0 ? (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-16 text-center">
-              <h3 className="text-lg font-medium text-slate-800">Inventário Vazio</h3>
-              <p className="text-slate-500 mt-1">Nenhum volume foi contabilizado.</p>
+              <h3 className="text-lg font-medium text-slate-800">Nenhuma Minuta Bipada</h3>
+              <p className="text-slate-500 mt-1">Nenhum volume foi contabilizado neste inventário.</p>
             </div>
           ) : (
-            minutasMap.map(minuta => (
+            minutasBipadas.map(minuta => (
               <MinutaGroup 
                 key={minuta.idMinuta} 
                 idMinuta={minuta.idMinuta} 
