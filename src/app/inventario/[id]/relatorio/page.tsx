@@ -256,10 +256,18 @@ export default function RelatorioInventarioPage() {
       if (!map.has(idMinuta)) map.set(idMinuta, []);
       map.get(idMinuta)!.push(item);
     });
-    // Ordenar as chaves, colocando SEM_MINUTA por último
+    // Ordenar as chaves por cidade de destino final (destino_nome)
     const chaves = Array.from(map.keys()).sort((a, b) => {
       if (a === "SEM_MINUTA") return 1;
       if (b === "SEM_MINUTA") return -1;
+      
+      const destinoA = map.get(a)?.[0]?.detalhe?.destino_nome ?? "";
+      const destinoB = map.get(b)?.[0]?.detalhe?.destino_nome ?? "";
+      
+      const cmp = destinoA.localeCompare(destinoB);
+      if (cmp !== 0) return cmp;
+      
+      // Desempate pelo número da minuta
       return parseInt(b) - parseInt(a);
     });
 
@@ -274,6 +282,18 @@ export default function RelatorioInventarioPage() {
       minuta.itens.some(item => item.status_auditoria !== "FALTANTE")
     );
   }, [minutasMap]);
+
+  // Contagem de minutas por praça
+  const pracasCount = useMemo(() => {
+    const counts = new Map<string, number>();
+    minutasBipadas.forEach(m => {
+      const primeiroDetalhe = m.itens.find(i => i.detalhe)?.detalhe;
+      const praca = primeiroDetalhe?.praca || "SEM_PRACA";
+      counts.set(praca, (counts.get(praca) || 0) + 1);
+    });
+    // Ordena do maior para o menor
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  }, [minutasBipadas]);
 
   if (isLoading) {
     return (
@@ -414,19 +434,38 @@ export default function RelatorioInventarioPage() {
         </header>
 
         {/* Cards de Métricas Simples */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center text-center">
             <h3 className="text-slate-500 font-semibold text-sm uppercase tracking-wider mb-2">
               Volumes Bipados
             </h3>
             <p className="text-5xl font-black text-indigo-600">{totalBipados}</p>
           </div>
+          
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center text-center">
             <h3 className="text-slate-500 font-semibold text-sm uppercase tracking-wider mb-2">
               Qtd. de Minutas
             </h3>
             <p className="text-5xl font-black text-slate-800">{totalMinutas}</p>
           </div>
+
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center text-center w-full">
+            <h3 className="text-slate-500 font-semibold text-sm uppercase tracking-wider mb-3">
+              Minutas por Praça
+            </h3>
+            <div className="flex flex-wrap justify-center gap-2 max-h-24 overflow-y-auto w-full">
+              {pracasCount.length > 0 ? (
+                pracasCount.map(([praca, count]) => (
+                  <span key={praca} className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-sm font-bold border border-slate-200">
+                    {praca.toUpperCase()}: <span className="text-indigo-600">{count}</span>
+                  </span>
+                ))
+              ) : (
+                <span className="text-slate-400 text-sm">Nenhuma praça registrada</span>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white rounded-3xl shadow-sm border border-red-100 p-6 flex flex-col items-center justify-center text-center">
             <h3 className="text-red-600 font-semibold text-sm uppercase tracking-wider mb-2">
               Volumes Faltantes

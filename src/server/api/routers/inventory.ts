@@ -580,7 +580,7 @@ export const inventoryRouter = createTRPCRouter({
               m.destino
             )                 AS destino_nome,
             r.rota            AS rota_nome,
-            r.praca           AS praca,
+            rd.praca          AS praca,
             m.status          AS minuta_status,
             m.total_volumes   AS total_volumes,
             m.cte_numero      AS cte_numero
@@ -775,83 +775,82 @@ export const inventoryRouter = createTRPCRouter({
          }
       }
 
-      // Faltantes para as divergências do dia
-      // Divergência = Minutas que possuem pelo menos 1 item bipado E pelo menos 1 item faltante
+      // ==========================================
+      // LÓGICA DE DIVERGÊNCIA (MATEMÁTICA / VIRTUAL)
+      // ==========================================
+      // A página de relatório calcula os faltantes "virtualmente" buscando o total
+      // de volumes da minuta no banco legado. Se a quantidade de itens bipados
+      // for menor que o total de volumes da minuta, então a minuta é divergente.
       const todosBarcodes = inventariosDb.flatMap(inv => inv.itens.map(i => i.codigo_barra));
-      
-      let barcodeMinutaMap = new Map<string, number>();
+
+      let barcodeParaMinuta = new Map<string, number>();
+      let minutasUnicasEncontradas = new Set<number>();
+
       if (todosBarcodes.length > 0) {
-        // Encontrar as minutas associadas aos itens bipados/faltantes
-        const minutasIniciais = await dbReadonly`
-          SELECT DISTINCT v.id_minuta
-          FROM historico_volume h
-          INNER JOIN volumes v ON h.id_volume = v.id_volume
-          WHERE h.barra = ANY(${todosBarcodes})
-        `;
-
-        const minutaIdsIniciais = minutasIniciais.map(m => Number(m.id_minuta)).filter(Boolean);
-
-        // Obter todas as barras dessas minutas
-        const todasBarras = minutaIdsIniciais.length > 0 ? await dbReadonly`
-          SELECT 
-            (SELECT h.barra FROM historico_volume h WHERE h.id_volume = v.id_volume ORDER BY h.id DESC LIMIT 1) as barra
-          FROM volumes v
-          WHERE v.id_minuta = ANY(${minutaIdsIniciais})
-        ` : [];
-
-        const allBarcodesSet = new Set<string>(todosBarcodes);
-        for (const b of todasBarras) {
-          if (b.barra) allBarcodesSet.add(String(b.barra));
-        }
-
-        const allBarcodes = Array.from(allBarcodesSet);
-
-        const detalhes = await dbReadonly`
+        const detalhesBarcodes = await dbReadonly`
           SELECT DISTINCT ON (h.barra)
             h.barra,
             v.id_minuta
           FROM historico_volume h
-          INNER JOIN volumes v ON h.id_volume  = v.id_volume
-          WHERE h.barra = ANY(${allBarcodes})
+          INNER JOIN volumes v ON h.id_volume = v.id_volume
+          WHERE h.barra = ANY(${todosBarcodes})
           ORDER BY h.barra, h.id DESC
         `;
 
-        barcodeMinutaMap = new Map(detalhes.map(d => [String(d.barra), Number(d.id_minuta)]));
+        for (const row of detalhesBarcodes) {
+          if (row.id_minuta) {
+            barcodeParaMinuta.set(String(row.barra), Number(row.id_minuta));
+            minutasUnicasEncontradas.add(Number(row.id_minuta));
+          }
+        }
       }
 
+      // Descobrir o total absoluto de volumes de cada minuta
+      let totaisPorMinuta = new Map<number, number>();
+      if (minutasUnicasEncontradas.size > 0) {
+        const arrayMinutas = Array.from(minutasUnicasEncontradas);
+        const contagemVolumes = await dbReadonly`
+          SELECT id_minuta, COUNT(id_volume) as total_volumes
+          FROM volumes
+          WHERE id_minuta = ANY(${arrayMinutas})
+          GROUP BY id_minuta
+        `;
+
+        for (const row of contagemVolumes) {
+          totaisPorMinuta.set(Number(row.id_minuta), Number(row.total_volumes));
+        }
+      }
+
+      // 3. Processar cada inventário do dia
       let totalItensConferidos = 0;
       const minutasComDivergenciaGeral = new Set<number>();
       const inventariosDoDia = [];
 
       for (const inv of inventariosDb) {
         let lidosDoInv = 0;
-        const minutasBipadasDoInv = new Set<number>();
-        const minutasFaltantesDoInv = new Set<number>();
+        const bipadosPorMinuta = new Map<number, number>();
 
         for (const item of inv.itens) {
-          const mId = barcodeMinutaMap.get(String(item.codigo_barra));
-          if (mId) {
-            if (item.status_auditoria === "FALTANTE") {
-              minutasFaltantesDoInv.add(mId);
-            } else {
-              minutasBipadasDoInv.add(mId);
-              lidosDoInv++;
-              totalItensConferidos++;
-            }
-          } else {
-            if (item.status_auditoria !== "FALTANTE") {
-              lidosDoInv++;
-              totalItensConferidos++;
+          // Apenas contabiliza os itens reais bipados (ignoramos os faltantes salvos, se houver)
+          if (item.status_auditoria !== "FALTANTE") {
+            lidosDoInv++;
+            totalItensConferidos++;
+            
+            const mId = barcodeParaMinuta.get(String(item.codigo_barra));
+            if (mId) {
+              bipadosPorMinuta.set(mId, (bipadosPorMinuta.get(mId) || 0) + 1);
             }
           }
         }
 
+        // Calcular divergência matemática: se bipou menos que o total da minuta -> divergência
         let divergenciasDoInv = 0;
-        for (const mId of minutasBipadasDoInv) {
-           if (minutasFaltantesDoInv.has(mId)) {
-              divergenciasDoInv++;
-              minutasComDivergenciaGeral.add(mId);
-           }
+        for (const [mId, qtdBipada] of bipadosPorMinuta.entries()) {
+          const totalDaMinuta = totaisPorMinuta.get(mId) || 0;
+          if (qtdBipada > 0 && qtdBipada < totalDaMinuta) {
+            divergenciasDoInv++;
+            minutasComDivergenciaGeral.add(mId);
+          }
         }
 
         inventariosDoDia.push({
@@ -886,7 +885,10 @@ export const inventoryRouter = createTRPCRouter({
         };
       });
 
-      // Resumo de Conferência: minutas com faltantes por dia do mês atual
+      // ==========================================
+      // Resumo de Conferência: minutas divergentes por dia do mês atual
+      // Usa a MESMA LÓGICA MATEMÁTICA
+      // ==========================================
       const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
       const invHistoricosMes = await ctx.db.inventario.findMany({
         where: { criadoEm: { gte: inicioMes } },
@@ -894,63 +896,66 @@ export const inventoryRouter = createTRPCRouter({
       });
 
       const todosMesBarcodes = invHistoricosMes.flatMap(inv => inv.itens.map(i => i.codigo_barra));
-      
+
       let barcodeMesMinutaMap = new Map<string, number>();
+      let minutasUnicasMes = new Set<number>();
+
       if (todosMesBarcodes.length > 0) {
-         const minutasIniciais = await dbReadonly`
-            SELECT DISTINCT v.id_minuta
-            FROM historico_volume h
-            INNER JOIN volumes v ON h.id_volume = v.id_volume
-            WHERE h.barra = ANY(${todosMesBarcodes})
-         `;
-         const minutaIdsIniciais = minutasIniciais.map(m => Number(m.id_minuta)).filter(Boolean);
-         const todasBarras = minutaIdsIniciais.length > 0 ? await dbReadonly`
-            SELECT 
-               (SELECT h.barra FROM historico_volume h WHERE h.id_volume = v.id_volume ORDER BY h.id DESC LIMIT 1) as barra
-            FROM volumes v
-            WHERE v.id_minuta = ANY(${minutaIdsIniciais})
-         ` : [];
-         const allBarcodesSet = new Set<string>(todosMesBarcodes);
-         for (const b of todasBarras) {
-            if (b.barra) allBarcodesSet.add(String(b.barra));
-         }
-         const allBarcodes = Array.from(allBarcodesSet);
-         const detalhes = await dbReadonly`
-            SELECT DISTINCT ON (h.barra) h.barra, v.id_minuta
-            FROM historico_volume h
-            INNER JOIN volumes v ON h.id_volume = v.id_volume
-            WHERE h.barra = ANY(${allBarcodes})
-            ORDER BY h.barra, h.id DESC
-         `;
-         barcodeMesMinutaMap = new Map(detalhes.map(d => [String(d.barra), Number(d.id_minuta)]));
+        const detalhes = await dbReadonly`
+          SELECT DISTINCT ON (h.barra) h.barra, v.id_minuta
+          FROM historico_volume h
+          INNER JOIN volumes v ON h.id_volume = v.id_volume
+          WHERE h.barra = ANY(${todosMesBarcodes})
+          ORDER BY h.barra, h.id DESC
+        `;
+        
+        for (const row of detalhes) {
+          if (row.id_minuta) {
+            barcodeMesMinutaMap.set(String(row.barra), Number(row.id_minuta));
+            minutasUnicasMes.add(Number(row.id_minuta));
+          }
+        }
+      }
+
+      let totaisMesPorMinuta = new Map<number, number>();
+      if (minutasUnicasMes.size > 0) {
+        const arrayMinutasMes = Array.from(minutasUnicasMes);
+        const contagemMes = await dbReadonly`
+          SELECT id_minuta, COUNT(id_volume) as total_volumes
+          FROM volumes
+          WHERE id_minuta = ANY(${arrayMinutasMes})
+          GROUP BY id_minuta
+        `;
+        for (const row of contagemMes) {
+          totaisMesPorMinuta.set(Number(row.id_minuta), Number(row.total_volumes));
+        }
       }
 
       const diasMap = new Map<number, Set<number>>();
       for (const inv of invHistoricosMes) {
-         const dia = inv.criadoEm.getDate();
-         const minutasSet = diasMap.get(dia) ?? new Set<number>();
-         
-         const bipadasSet = new Set<number>();
-         const faltantesSet = new Set<number>();
-         
-         for (const item of inv.itens) {
+        const dia = inv.criadoEm.getDate();
+        const minutasSet = diasMap.get(dia) ?? new Set<number>();
+        
+        const bipadosPorMinutaMes = new Map<number, number>();
+
+        for (const item of inv.itens) {
+          if (item.status_auditoria !== "FALTANTE") {
             const mId = barcodeMesMinutaMap.get(String(item.codigo_barra));
             if (mId) {
-               if (item.status_auditoria === "FALTANTE") {
-                  faltantesSet.add(mId);
-               } else {
-                  bipadasSet.add(mId);
-               }
+              bipadosPorMinutaMes.set(mId, (bipadosPorMinutaMes.get(mId) || 0) + 1);
             }
-         }
-         
-         for (const mId of bipadasSet) {
-            if (faltantesSet.has(mId)) {
-               minutasSet.add(mId);
-            }
-         }
-         
-         diasMap.set(dia, minutasSet);
+          }
+        }
+
+        // Se bipou menos que o total -> divergência
+        for (const [mId, qtdBipada] of bipadosPorMinutaMes.entries()) {
+          const totalDaMinuta = totaisMesPorMinuta.get(mId) || 0;
+          if (qtdBipada > 0 && qtdBipada < totalDaMinuta) {
+            minutasSet.add(mId);
+          }
+        }
+
+        diasMap.set(dia, minutasSet);
       }
 
       const resumoConferencia = [];
