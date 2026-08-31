@@ -150,7 +150,7 @@ function MinutaGroup({ idMinuta, itens }: { idMinuta: string; itens: ItemInventa
 
   // Calcular o total da minuta com base nos volumes retornados se não tiver o dado direto,
   // mas primeiroDetalhe?.total_volumes deve estar presente para minutas que vieram do banco legado.
-  const totalMinuta = (primeiroDetalhe as any)?.total_volumes ?? (bipados + faltantes);
+  const totalMinuta = primeiroDetalhe?.total_volumes ?? (bipados + faltantes);
 
   const rota = primeiroDetalhe?.destino_nome && primeiroDetalhe?.origem_nome
     ? `${primeiroDetalhe.origem_nome} -> ${primeiroDetalhe.destino_nome}`
@@ -244,7 +244,7 @@ export default function RelatorioInventarioPage() {
     { enabled: !!unidadeId }
   );
 
-  const [filtroSituacao, setFiltroSituacao] = useState<string>("");
+
 
   const divergenciasSeguras = useMemo(() => data?.divergencias ?? [], [data?.divergencias]);
 
@@ -313,7 +313,7 @@ export default function RelatorioInventarioPage() {
         ? `${item.detalhe.origem_nome} → ${item.detalhe.destino_nome}`
         : item.detalhe?.destino_nome ?? item.detalhe?.origem_nome ?? "—";
 
-      let statusFormatado = item.status_auditoria === "FALTANTE" ? "Faltante" : "Lido";
+      const statusFormatado = item.status_auditoria === "FALTANTE" ? "Faltante" : "Lido";
 
       return {
         "Minuta": item.detalhe?.id_minuta ?? "—",

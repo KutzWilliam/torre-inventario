@@ -762,7 +762,7 @@ export const inventoryRouter = createTRPCRouter({
       for (const unid of unidadesHoje) {
          const invs = inventariosDb.filter(i => i.unidade_id === unid);
          const hasAberto = invs.some(i => i.status === "ABERTO");
-         const concluidosPracas = new Set(invs.filter(i => i.status === "CONCLUIDO").map(i => i.praca_label || 'SEM_PRACA'));
+         const concluidosPracas = new Set(invs.filter(i => i.status === "CONCLUIDO").map(i => i.praca_label ?? 'SEM_PRACA'));
          
          const totalPracasAtivas = pracasPorUnidade.get(unid)?.size ?? 1;
 

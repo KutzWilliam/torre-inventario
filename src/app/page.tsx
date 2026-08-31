@@ -349,7 +349,7 @@ export default function Home() {
                         <p className="text-sm font-semibold text-slate-900">
                           {atv.status === "CONCLUIDO" ? "Inventário concluído" : "Inventário iniciado"}
                         </p>
-                        <p className="text-xs text-slate-500">{atv.sigla} · Praça: {atv.praca || 'Geral'} · {atv.itens} lidos</p>
+                        <p className="text-xs text-slate-500">{atv.sigla} · Praça: {atv.praca ?? 'Geral'} · {atv.itens} lidos</p>
                       </div>
                       <span className="text-xs text-slate-400 whitespace-nowrap">
                         {new Date(atv.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}

@@ -295,7 +295,7 @@ export default function InventarioPage() {
   for (let i = todosItens.length - 1; i >= 0; i--) {
     const item = todosItens[i];
     if (item?.id_minuta) {
-      const atual = contadorMinuta.get(item.id_minuta) || 0;
+      const atual = contadorMinuta.get(item.id_minuta) ?? 0;
       const proximo = atual + 1;
       contadorMinuta.set(item.id_minuta, proximo);
       sequencialPorItem.set(item.id, proximo);
@@ -470,7 +470,7 @@ export default function InventarioPage() {
                       key={item.id}
                       item={item}
                       isNew={item.id === lastScannedId}
-                      lidos={sequencialPorItem.get(item.id) || 0}
+                      lidos={sequencialPorItem.get(item.id) ?? 0}
                       onRemover={handleRemover}
                     />
                   ))}
