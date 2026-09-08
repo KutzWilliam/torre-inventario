@@ -133,11 +133,75 @@ export const inventoryRouter = createTRPCRouter({
     }));
   }),
 
+  // -------------------------------------------------------------------------
+  // listarPracas
+  // Retorna todas as praças distintas disponíveis na tabela rotas (legado),
+  // ordenadas alfabeticamente. Usado no modal de seleção de praça.
+  // -------------------------------------------------------------------------
+  listarPracas: publicProcedure.query(async () => {
+    const rows = await dbReadonly`
+      SELECT DISTINCT praca
+      FROM rotas
+      WHERE praca IS NOT NULL AND praca != ''
+      ORDER BY praca ASC
+    `;
+    return rows.map(r => String(r.praca));
+  }),
+
+  // -------------------------------------------------------------------------
+  // listarInventariosDaUnidade
+  // Retorna todos os inventários de uma unidade, do mais recente ao mais antigo,
+  // com a contagem de itens bipados. Não consulta o banco legado.
+  // -------------------------------------------------------------------------
+  listarInventariosDaUnidade: publicProcedure
+    .input(z.object({ unidade_id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const inventarios = await ctx.db.inventario.findMany({
+        where: { unidade_id: input.unidade_id },
+        orderBy: { criadoEm: "desc" },
+        // Conta separadamente: bipados (reais) e faltantes (inseridos no fechamento)
+        include: {
+          _count: {
+            select: {
+              itens: true,
+            },
+          },
+        },
+      });
+
+      // Para cada inventário, conta somente os itens realmente bipados (não FALTANTE)
+      // O _count acima traz o total; fazemos uma query adicional filtrada para os bipados.
+      const ids = inventarios.map(i => i.id);
+      const bipadosPorInventario = ids.length > 0
+        ? await ctx.db.itemInventario.groupBy({
+            by: ["inventario_id"],
+            where: {
+              inventario_id: { in: ids },
+              status_auditoria: { not: "FALTANTE" },
+            },
+            _count: { id: true },
+          })
+        : [];
+
+      const bipadosMap = new Map(bipadosPorInventario.map(r => [r.inventario_id, r._count.id]));
+
+      return inventarios.map(inv => ({
+        id:          inv.id,
+        status:      inv.status,
+        praca:       inv.praca ?? null,
+        praca_label: inv.praca_label ?? null,
+        criadoEm:    inv.criadoEm,
+        totalItens:  bipadosMap.get(inv.id) ?? 0,   // apenas itens bipados reais
+        totalGeral:  inv._count.itens,               // total incluindo faltantes (para referência)
+      }));
+    }),
+
   processarBipagemDiaria: publicProcedure
     .input(
       z.object({
         inventarioId: z.string(),
-        codigoBarra: z.string(),
+        // Aceita apenas códigos com exatamente 17 caracteres
+        codigoBarra: z.string().length(17, "Código de barras deve ter exatamente 17 caracteres"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -783,8 +847,8 @@ export const inventoryRouter = createTRPCRouter({
       // for menor que o total de volumes da minuta, então a minuta é divergente.
       const todosBarcodes = inventariosDb.flatMap(inv => inv.itens.map(i => i.codigo_barra));
 
-      let barcodeParaMinuta = new Map<string, number>();
-      let minutasUnicasEncontradas = new Set<number>();
+      const barcodeParaMinuta = new Map<string, number>();
+      const minutasUnicasEncontradas = new Set<number>();
 
       if (todosBarcodes.length > 0) {
         const detalhesBarcodes = await dbReadonly`
@@ -806,7 +870,7 @@ export const inventoryRouter = createTRPCRouter({
       }
 
       // Descobrir o total absoluto de volumes de cada minuta
-      let totaisPorMinuta = new Map<number, number>();
+      const totaisPorMinuta = new Map<number, number>();
       if (minutasUnicasEncontradas.size > 0) {
         const arrayMinutas = Array.from(minutasUnicasEncontradas);
         const contagemVolumes = await dbReadonly`
@@ -838,7 +902,7 @@ export const inventoryRouter = createTRPCRouter({
             
             const mId = barcodeParaMinuta.get(String(item.codigo_barra));
             if (mId) {
-              bipadosPorMinuta.set(mId, (bipadosPorMinuta.get(mId) || 0) + 1);
+              bipadosPorMinuta.set(mId, (bipadosPorMinuta.get(mId) ?? 0) + 1);
             }
           }
         }
@@ -846,7 +910,7 @@ export const inventoryRouter = createTRPCRouter({
         // Calcular divergência matemática: se bipou menos que o total da minuta -> divergência
         let divergenciasDoInv = 0;
         for (const [mId, qtdBipada] of bipadosPorMinuta.entries()) {
-          const totalDaMinuta = totaisPorMinuta.get(mId) || 0;
+          const totalDaMinuta = totaisPorMinuta.get(mId) ?? 0;
           if (qtdBipada > 0 && qtdBipada < totalDaMinuta) {
             divergenciasDoInv++;
             minutasComDivergenciaGeral.add(mId);
@@ -897,8 +961,8 @@ export const inventoryRouter = createTRPCRouter({
 
       const todosMesBarcodes = invHistoricosMes.flatMap(inv => inv.itens.map(i => i.codigo_barra));
 
-      let barcodeMesMinutaMap = new Map<string, number>();
-      let minutasUnicasMes = new Set<number>();
+      const barcodeMesMinutaMap = new Map<string, number>();
+      const minutasUnicasMes = new Set<number>();
 
       if (todosMesBarcodes.length > 0) {
         const detalhes = await dbReadonly`
@@ -917,7 +981,7 @@ export const inventoryRouter = createTRPCRouter({
         }
       }
 
-      let totaisMesPorMinuta = new Map<number, number>();
+      const totaisMesPorMinuta = new Map<number, number>();
       if (minutasUnicasMes.size > 0) {
         const arrayMinutasMes = Array.from(minutasUnicasMes);
         const contagemMes = await dbReadonly`
@@ -942,14 +1006,14 @@ export const inventoryRouter = createTRPCRouter({
           if (item.status_auditoria !== "FALTANTE") {
             const mId = barcodeMesMinutaMap.get(String(item.codigo_barra));
             if (mId) {
-              bipadosPorMinutaMes.set(mId, (bipadosPorMinutaMes.get(mId) || 0) + 1);
+              bipadosPorMinutaMes.set(mId, (bipadosPorMinutaMes.get(mId) ?? 0) + 1);
             }
           }
         }
 
         // Se bipou menos que o total -> divergência
         for (const [mId, qtdBipada] of bipadosPorMinutaMes.entries()) {
-          const totalDaMinuta = totaisMesPorMinuta.get(mId) || 0;
+          const totalDaMinuta = totaisMesPorMinuta.get(mId) ?? 0;
           if (qtdBipada > 0 && qtdBipada < totalDaMinuta) {
             minutasSet.add(mId);
           }

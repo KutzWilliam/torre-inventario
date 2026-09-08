@@ -288,8 +288,8 @@ export default function RelatorioInventarioPage() {
     const counts = new Map<string, number>();
     minutasBipadas.forEach(m => {
       const primeiroDetalhe = m.itens.find(i => i.detalhe)?.detalhe;
-      const praca = primeiroDetalhe?.praca || "SEM_PRACA";
-      counts.set(praca, (counts.get(praca) || 0) + 1);
+      const praca = primeiroDetalhe?.praca ?? "SEM_PRACA";
+      counts.set(praca, (counts.get(praca) ?? 0) + 1);
     });
     // Ordena do maior para o menor
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);

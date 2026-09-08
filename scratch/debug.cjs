@@ -13,8 +13,8 @@ async function run() {
   
   console.log('Inv ID:', inv.id, 'Total itens:', inv.itens.length);
   
-  const FALTANTES = inv.itens.filter(i => i.status_auditoria === 'FALTANTE');
-  const LIDOS = inv.itens.filter(i => i.status_auditoria !== 'FALTANTE');
+  const FALTANTES = inv.itens.filter((/** @type {any} */ i) => i.status_auditoria === 'FALTANTE');
+  const LIDOS = inv.itens.filter((/** @type {any} */ i) => i.status_auditoria !== 'FALTANTE');
   console.log('Faltantes:', FALTANTES.length, 'Lidos:', LIDOS.length);
   
   const allBarcodes = inv.itens.map(i => i.codigo_barra);

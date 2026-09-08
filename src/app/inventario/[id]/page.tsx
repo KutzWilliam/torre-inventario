@@ -148,10 +148,14 @@ export default function InventarioPage() {
   const [codigoManual, setCodigoManual] = useState("");
   const [lastScannedId, setLastScannedId] = useState<string | null>(null);
   const [duplicado, setDuplicado] = useState(false);
+  const [codigoInvalido, setCodigoInvalido] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const duplicadoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const invalidoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Timer para auto-submit após pausa do leitor de código de barras
   const scannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Contador de mutações pendentes para evitar invalidate prematuro
+  const pendingMutationsRef = useRef<number>(0);
 
   // Queries e Mutations do tRPC
   const trpcUtils = api.useUtils();
@@ -197,17 +201,19 @@ export default function InventarioPage() {
 
   const mutation = api.inventory.processarBipagemDiaria.useMutation({
     onMutate: async (novoItem) => {
-      // Optimistic update
-      await trpcUtils.inventory.listarItensDoInventario.cancel({ inventarioId });
+      // Conta as mutações pendentes (não cancela o fetch para não perder dados)
+      pendingMutationsRef.current += 1;
+
+      // Optimistic update: insere o item temporário no topo da lista sem cancelar queries
       const previousItens = trpcUtils.inventory.listarItensDoInventario.getData({ inventarioId });
       
       if (previousItens) {
         trpcUtils.inventory.listarItensDoInventario.setData({ inventarioId }, [
           {
-            id: `temp-${Date.now()}`,
+            id: `temp-${Date.now()}-${Math.random()}`,
             inventario_id: inventarioId,
             codigo_barra: novoItem.codigoBarra,
-            status_auditoria: "CARREGANDO", // status temporário provisório
+            status_auditoria: "CARREGANDO",
             criadoEm: new Date(),
             id_minuta: null,
             total_volumes: null,
@@ -218,24 +224,59 @@ export default function InventarioPage() {
       return { previousItens };
     },
     onSuccess: (data) => {
-      void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
-      
+      pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
+
       if (data.duplicado) {
         // Exibe aviso visual de duplicata por 3 segundos
         setDuplicado(true);
         if (duplicadoTimerRef.current) clearTimeout(duplicadoTimerRef.current);
         duplicadoTimerRef.current = setTimeout(() => setDuplicado(false), 3000);
+        // Remove o item temporário CARREGANDO que foi inserido para essa duplicata
+        const current = trpcUtils.inventory.listarItensDoInventario.getData({ inventarioId });
+        if (current) {
+          trpcUtils.inventory.listarItensDoInventario.setData(
+            { inventarioId },
+            current.filter(i => i.codigo_barra !== data.item.codigo_barra || i.status_auditoria !== "CARREGANDO")
+          );
+        }
+        // Só invalida a query quando todas as mutações pendentes terminarem
+        if (pendingMutationsRef.current === 0) {
+          void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
+        }
         return;
       }
 
-      // Novo item — atualiza lista e destaca o item bipado
+      // Novo item — atualiza o item temporário com os dados reais vindos do servidor
       setLastScannedId(data.item.id);
       setDuplicado(false);
+
+      const current = trpcUtils.inventory.listarItensDoInventario.getData({ inventarioId });
+      if (current) {
+        // Substitui o primeiro item CARREGANDO com o mesmo código pelo item real
+        let replaced = false;
+        const updated = current.map(i => {
+          if (!replaced && i.status_auditoria === "CARREGANDO" && i.codigo_barra === data.item.codigo_barra) {
+            replaced = true;
+            return { ...data.item, id_minuta: null, total_volumes: null };
+          }
+          return i;
+        });
+        trpcUtils.inventory.listarItensDoInventario.setData({ inventarioId }, updated);
+      }
+
+      // Só invalida (refaz a query real com dados do legado) quando não há mais mutações pendentes
+      if (pendingMutationsRef.current === 0) {
+        void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
+      }
     },
-    onError: (err, newItem, context) => {
+    onError: (_err, _newItem, context) => {
+      pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
       // Reverte se der erro
       if (context?.previousItens) {
         trpcUtils.inventory.listarItensDoInventario.setData({ inventarioId }, context.previousItens);
+      }
+      if (pendingMutationsRef.current === 0) {
+        void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
       }
       inputRef.current?.focus();
     },
@@ -257,9 +298,24 @@ export default function InventarioPage() {
     inputRef.current?.focus();
   }, [itens]);
 
+  const BARCODE_LENGTH = 17;
+
+  const showInvalidoFeedback = () => {
+    setCodigoInvalido(true);
+    if (invalidoTimerRef.current) clearTimeout(invalidoTimerRef.current);
+    invalidoTimerRef.current = setTimeout(() => setCodigoInvalido(false), 2500);
+  };
+
   const submitCodigo = (value: string) => {
-    if (!value.trim()) return;
-    mutation.mutate({ inventarioId, codigoBarra: value.trim() });
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    // Só aceita códigos com exatamente 17 caracteres
+    if (trimmed.length !== BARCODE_LENGTH) {
+      setCodigo("");
+      showInvalidoFeedback();
+      return;
+    }
+    mutation.mutate({ inventarioId, codigoBarra: trimmed });
     setCodigo(""); // Limpa imediatamente, não espera o backend
   };
 
@@ -276,6 +332,7 @@ export default function InventarioPage() {
 
     // Auto-submit: aguarda 220ms de silêncio após o último caractere
     // (leitores de código de barras enviam todos os chars em <100ms)
+    // A validação de 17 chars é feita dentro do submitCodigo
     if (scannerTimerRef.current) clearTimeout(scannerTimerRef.current);
     if (value.trim()) {
       scannerTimerRef.current = setTimeout(() => {
@@ -407,6 +464,26 @@ export default function InventarioPage() {
             </svg>
             Digitação Manual
           </button>
+        </div>
+
+        {/* ── Banner de código inválido (tamanho errado) ── */}
+        <div
+          className={[
+            "flex items-center gap-3 px-5 py-3.5 rounded-2xl border transition-all duration-300",
+            codigoInvalido
+              ? "opacity-100 bg-amber-50 border-amber-200 text-amber-700"
+              : "opacity-0 pointer-events-none bg-transparent border-transparent",
+          ].join(" ")}
+          aria-live="polite"
+        >
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <div>
+            <p className="font-semibold text-sm">Código de barras inválido — descartado</p>
+            <p className="text-xs text-amber-600/80">Apenas códigos com exatamente 17 caracteres são aceitos. Bipagem dupla acidental ignorada.</p>
+          </div>
         </div>
 
         {/* ── Banner de duplicata ── */}
