@@ -247,13 +247,13 @@ export const inventoryRouter = createTRPCRouter({
 
       let ultimoRegistro: {
         barra: string;
-        unidade_teorica: number | string | null;
-        tipo_picking: number | string | null;
-        id_minuta: number | string | null;
-        parcial: number | string | null;
-        total_volumes: number | string | null;
-        id_manifesto: number | string | null;
-        minuta_status: number | string | null;
+        unidade_teorica: number | null;
+        tipo_picking: number | null;
+        id_minuta: number | null;
+        parcial: number | null;
+        total_volumes: number | null;
+        id_manifesto: number | null;
+        minuta_status: number | null;
         prev_entrega: string | null;
         origem_nome: string | null;
         destino_nome: string | null;
@@ -276,19 +276,20 @@ export const inventoryRouter = createTRPCRouter({
           LIMIT 1
         `;
 
+        const pm = rowsPreMinuta[0];
         const mov = rowsMovimento[0];
         ultimoRegistro = {
-          barra:           String(rowsPreMinuta[0].barra),
-          unidade_teorica: mov?.unidade_teorica ?? null,
-          tipo_picking:    mov?.tipo_picking ?? null,
-          id_minuta:       rowsPreMinuta[0].id_minuta,
-          parcial:         mov?.parcial ?? null,
-          total_volumes:   rowsPreMinuta[0].total_volumes,
-          id_manifesto:    mov?.id_manifesto ?? null,
-          minuta_status:   rowsPreMinuta[0].minuta_status,
-          prev_entrega:    rowsPreMinuta[0].prev_entrega as string | null,
-          origem_nome:     rowsPreMinuta[0].origem_nome as string | null,
-          destino_nome:    rowsPreMinuta[0].destino_nome as string | null,
+          barra:           String(pm.barra),
+          unidade_teorica: mov?.unidade_teorica != null ? Number(mov.unidade_teorica) : null,
+          tipo_picking:    mov?.tipo_picking != null ? Number(mov.tipo_picking) : null,
+          id_minuta:       pm.id_minuta != null ? Number(pm.id_minuta) : null,
+          parcial:         mov?.parcial != null ? Number(mov.parcial) : null,
+          total_volumes:   pm.total_volumes != null ? Number(pm.total_volumes) : null,
+          id_manifesto:    mov?.id_manifesto != null ? Number(mov.id_manifesto) : null,
+          minuta_status:   pm.minuta_status != null ? Number(pm.minuta_status) : null,
+          prev_entrega:    pm.prev_entrega != null ? String(pm.prev_entrega) : null,
+          origem_nome:     pm.origem_nome != null ? String(pm.origem_nome) : null,
+          destino_nome:    pm.destino_nome != null ? String(pm.destino_nome) : null,
         };
       } else {
         // Fallback: se não encontrou em pre_minuta, busca pelo historico_volume
@@ -320,19 +321,20 @@ export const inventoryRouter = createTRPCRouter({
           ORDER BY h.barra, h.data DESC, h.id DESC
         `;
 
-        if (rowsHistorico[0]) {
+        const hist = rowsHistorico[0];
+        if (hist) {
           ultimoRegistro = {
-            barra:           String(rowsHistorico[0].barra),
-            unidade_teorica: rowsHistorico[0].unidade_teorica,
-            tipo_picking:    rowsHistorico[0].tipo_picking,
-            id_minuta:       rowsHistorico[0].id_minuta,
-            parcial:         rowsHistorico[0].parcial,
-            total_volumes:   rowsHistorico[0].total_volumes,
-            id_manifesto:    rowsHistorico[0].id_manifesto,
-            minuta_status:   rowsHistorico[0].minuta_status,
-            prev_entrega:    rowsHistorico[0].prev_entrega as string | null,
-            origem_nome:     rowsHistorico[0].origem_nome as string | null,
-            destino_nome:    rowsHistorico[0].destino_nome as string | null,
+            barra:           String(hist.barra),
+            unidade_teorica: hist.unidade_teorica != null ? Number(hist.unidade_teorica) : null,
+            tipo_picking:    hist.tipo_picking != null ? Number(hist.tipo_picking) : null,
+            id_minuta:       hist.id_minuta != null ? Number(hist.id_minuta) : null,
+            parcial:         hist.parcial != null ? Number(hist.parcial) : null,
+            total_volumes:   hist.total_volumes != null ? Number(hist.total_volumes) : null,
+            id_manifesto:    hist.id_manifesto != null ? Number(hist.id_manifesto) : null,
+            minuta_status:   hist.minuta_status != null ? Number(hist.minuta_status) : null,
+            prev_entrega:    hist.prev_entrega != null ? String(hist.prev_entrega) : null,
+            origem_nome:     hist.origem_nome != null ? String(hist.origem_nome) : null,
+            destino_nome:    hist.destino_nome != null ? String(hist.destino_nome) : null,
           };
         }
       }
@@ -399,9 +401,9 @@ export const inventoryRouter = createTRPCRouter({
         detalhe: ultimoRegistro ? {
           id_minuta:     ultimoRegistro.id_minuta ? Number(ultimoRegistro.id_minuta) : null,
           id_manifesto:  ultimoRegistro.id_manifesto ? Number(ultimoRegistro.id_manifesto) : null,
-          prev_entrega:  ultimoRegistro.prev_entrega as string | null,
-          origem_nome:   ultimoRegistro.origem_nome as string | null,
-          destino_nome:  ultimoRegistro.destino_nome as string | null,
+          prev_entrega:  ultimoRegistro.prev_entrega,
+          origem_nome:   ultimoRegistro.origem_nome,
+          destino_nome:  ultimoRegistro.destino_nome,
           minuta_status: minutaStatus,
           parcial:       ultimoRegistro.parcial != null ? Number(ultimoRegistro.parcial) : null,
           total_volumes: ultimoRegistro.total_volumes != null ? Number(ultimoRegistro.total_volumes) : null,
