@@ -24,6 +24,7 @@ type Detalhe = {
   praca: string | null;
   minuta_status: number | null;
   total_volumes?: number | null;
+  parcial?: number | null;
   cte_zero?: boolean;
 } | null;
 
@@ -94,6 +95,15 @@ function DivRow({ item }: { item: ItemInventario }) {
         <span className="font-mono text-sm font-medium text-slate-700 group-hover:text-indigo-600 transition-colors">
           {item.codigo_barra}
         </span>
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap">
+        {item.detalhe?.parcial != null ? (
+          <span className="font-mono text-xs bg-indigo-50 px-2 py-1 rounded-md text-indigo-700 font-semibold border border-indigo-100">
+            Vol. {item.detalhe.parcial}
+          </span>
+        ) : (
+          <span className="text-slate-300 text-sm">—</span>
+        )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         <StatusBadge status={item.status_auditoria} />
@@ -206,6 +216,7 @@ function MinutaGroup({ idMinuta, itens }: { idMinuta: string; itens: ItemInventa
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr className="text-[10px] uppercase tracking-wider text-slate-500">
                   <th className="px-4 py-3 font-semibold">Código de Barras</th>
+                  <th className="px-4 py-3 font-semibold">Parcial</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Última Bipagem</th>
                   <th className="px-4 py-3 font-semibold">Ocorrência</th>
@@ -338,6 +349,7 @@ export default function RelatorioInventarioPage() {
       return {
         "Minuta": item.detalhe?.id_minuta ?? "—",
         "Código de Barras": item.codigo_barra,
+        "Parcial": item.detalhe?.parcial != null ? `Vol. ${item.detalhe.parcial}` : "—",
         "Status": statusFormatado,
         "Última Bipagem": item.ultima_bipagem?.unidade_nome
           ? `${item.ultima_bipagem.tipo === "EMBARQUE" ? "Embarque" : "Desembarque"} - ${item.ultima_bipagem.unidade_nome}`

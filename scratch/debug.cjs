@@ -17,7 +17,7 @@ async function run() {
   const LIDOS = inv.itens.filter((/** @type {any} */ i) => i.status_auditoria !== 'FALTANTE');
   console.log('Faltantes:', FALTANTES.length, 'Lidos:', LIDOS.length);
   
-  const allBarcodes = inv.itens.map(i => i.codigo_barra);
+  const allBarcodes = inv.itens.map((/** @type {any} */ i) => i.codigo_barra);
   
   const rows = await sql`
      SELECT DISTINCT ON (h.barra) h.barra, v.id_minuta

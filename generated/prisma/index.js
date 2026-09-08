@@ -144,7 +144,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "C:\\Users\\william.kutz\\Documents\\Sistemas\\torre-inventario\\generated\\prisma",
+      "value": "C:\\Users\\william.kutz\\Documents\\Sistema Princesa\\torre-inventario\\generated\\prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -158,7 +158,7 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "C:\\Users\\william.kutz\\Documents\\Sistemas\\torre-inventario\\prisma\\schema.prisma",
+    "sourceFilePath": "C:\\Users\\william.kutz\\Documents\\Sistema Princesa\\torre-inventario\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {

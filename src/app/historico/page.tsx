@@ -121,20 +121,19 @@ export default function HistoricoPage() {
                   <th className="px-6 py-4">Unidade</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-center">Bipados</th>
-                  <th className="px-6 py-4 text-center text-emerald-600">Corretos</th>
                   <th className="px-6 py-4 text-center text-orange-600">Divergências</th>
-                  <th className="px-6 py-4 text-center text-red-600">Extravios</th>
+                  <th className="px-6 py-4 text-center text-red-600">Faltantes</th>
                   <th className="px-6 py-4 text-right">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-slate-400 animate-pulse">Carregando histórico...</td>
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400 animate-pulse">Carregando histórico...</td>
                   </tr>
                 ) : !historico || historico.items.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-slate-400">Nenhum inventário encontrado para os filtros selecionados.</td>
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400">Nenhum inventário encontrado para os filtros selecionados.</td>
                   </tr>
                 ) : (
                   historico.items.map((inv) => {
@@ -159,9 +158,24 @@ export default function HistoricoPage() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-center font-medium text-slate-700">{inv.bipados}</td>
-                        <td className="px-6 py-4 text-center font-medium text-emerald-600">{inv.corretos}</td>
-                        <td className="px-6 py-4 text-center font-medium text-orange-600">{inv.divergentes}</td>
-                        <td className="px-6 py-4 text-center font-medium text-red-600">{inv.extravios}</td>
+                        <td className="px-6 py-4 text-center font-medium text-orange-600">
+                          {inv.divergencias > 0 ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200">
+                              {inv.divergencias} minuta{inv.divergencias !== 1 ? "s" : ""}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">0</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-center font-medium text-red-600">
+                          {inv.faltantes > 0 ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200">
+                              {inv.faltantes} vol{inv.faltantes !== 1 ? "s" : ""}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">0</span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-right">
                           <Link href={inv.status === "ABERTO" ? `/inventario/${inv.id}` : `/inventario/${inv.id}/relatorio`} className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors">
                             Abrir ↗

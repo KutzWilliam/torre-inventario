@@ -39,6 +39,7 @@ type ItemSimples = {
   criadoEm: Date;
   id_minuta: number | null;
   total_volumes: number | null;
+  parcial: number | null;
 };
 
 // ─── Linha da tabela (simples — sem consulta legado) ──────────────────────
@@ -89,6 +90,17 @@ function ItemRow({
         {item.id_minuta ? (
           <span className="font-mono text-xs bg-slate-100 px-2 py-1 rounded-md text-slate-700 font-medium border border-slate-200">
             {item.id_minuta}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">-</span>
+        )}
+      </td>
+
+      {/* Parcial */}
+      <td className="px-4 py-3 whitespace-nowrap">
+        {item.parcial != null ? (
+          <span className="font-mono text-xs bg-indigo-50 px-2 py-1 rounded-md text-indigo-700 font-semibold border border-indigo-100">
+            Vol. {item.parcial}
           </span>
         ) : (
           <span className="text-xs text-slate-400">-</span>
@@ -156,6 +168,8 @@ export default function InventarioPage() {
   const scannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Contador de mutações pendentes para evitar invalidate prematuro
   const pendingMutationsRef = useRef<number>(0);
+  // Timer para sincronização de fundo (invalidate debounced) sem travar a UI
+  const invalidateDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Queries e Mutations do tRPC
   const trpcUtils = api.useUtils();
@@ -201,37 +215,42 @@ export default function InventarioPage() {
 
   const mutation = api.inventory.processarBipagemDiaria.useMutation({
     onMutate: async (novoItem) => {
-      // Conta as mutações pendentes (não cancela o fetch para não perder dados)
       pendingMutationsRef.current += 1;
 
-      // Optimistic update: insere o item temporário no topo da lista sem cancelar queries
+      // Optimistic update imediato para dar feedback instantâneo na UI
+      await trpcUtils.inventory.listarItensDoInventario.cancel({ inventarioId });
       const previousItens = trpcUtils.inventory.listarItensDoInventario.getData({ inventarioId });
       
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       if (previousItens) {
         trpcUtils.inventory.listarItensDoInventario.setData({ inventarioId }, [
           {
-            id: `temp-${Date.now()}-${Math.random()}`,
+            id: tempId,
             inventario_id: inventarioId,
             codigo_barra: novoItem.codigoBarra,
             status_auditoria: "CARREGANDO",
             criadoEm: new Date(),
             id_minuta: null,
+            parcial: null,
             total_volumes: null,
           },
           ...previousItens,
         ]);
       }
-      return { previousItens };
+      return { previousItens, tempId, codigoBarra: novoItem.codigoBarra };
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables, context) => {
       pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
 
       if (data.duplicado) {
-        // Exibe aviso visual de duplicata por 3 segundos
+        // Remove o item temporário optimista se era duplicata
+        if (context?.previousItens) {
+          trpcUtils.inventory.listarItensDoInventario.setData({ inventarioId }, context.previousItens);
+        }
         setDuplicado(true);
         if (duplicadoTimerRef.current) clearTimeout(duplicadoTimerRef.current);
         duplicadoTimerRef.current = setTimeout(() => setDuplicado(false), 3000);
-        // Remove o item temporário CARREGANDO que foi inserido para essa duplicata
+
         const current = trpcUtils.inventory.listarItensDoInventario.getData({ inventarioId });
         if (current) {
           trpcUtils.inventory.listarItensDoInventario.setData(
@@ -239,35 +258,49 @@ export default function InventarioPage() {
             current.filter(i => i.codigo_barra !== data.item.codigo_barra || i.status_auditoria !== "CARREGANDO")
           );
         }
-        // Só invalida a query quando todas as mutações pendentes terminarem
-        if (pendingMutationsRef.current === 0) {
-          void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
-        }
         return;
       }
 
-      // Novo item — atualiza o item temporário com os dados reais vindos do servidor
+      // Atualiza diretamente no cache tRPC usando os dados reais retornados pelo backend
+      // sem necessidade de fazer refetch imediato de toda a lista
+      trpcUtils.inventory.listarItensDoInventario.setData({ inventarioId }, (oldItens) => {
+        if (!oldItens) return oldItens;
+        
+        const itemAtualizado: ItemSimples = {
+          id: data.item.id,
+          inventario_id: data.item.inventario_id,
+          codigo_barra: data.item.codigo_barra,
+          status_auditoria: data.item.status_auditoria,
+          criadoEm: new Date(data.item.criadoEm),
+          id_minuta: data.detalhe?.id_minuta ?? null,
+          parcial: data.detalhe?.parcial ?? null,
+          total_volumes: data.detalhe?.total_volumes ?? null,
+        };
+
+        // Substitui o item temporário criado no onMutate pelo item real retornado
+        const index = oldItens.findIndex((i) => i.id === context?.tempId || i.codigo_barra === variables.codigoBarra);
+        if (index !== -1) {
+          const copia = [...oldItens];
+          copia[index] = itemAtualizado;
+          return copia;
+        }
+
+        return [itemAtualizado, ...oldItens];
+      });
+
+      // Novo item — destaca o item bipado
       setLastScannedId(data.item.id);
       setDuplicado(false);
 
-      const current = trpcUtils.inventory.listarItensDoInventario.getData({ inventarioId });
-      if (current) {
-        // Substitui o primeiro item CARREGANDO com o mesmo código pelo item real
-        let replaced = false;
-        const updated = current.map(i => {
-          if (!replaced && i.status_auditoria === "CARREGANDO" && i.codigo_barra === data.item.codigo_barra) {
-            replaced = true;
-            return { ...data.item, id_minuta: null, total_volumes: null };
-          }
-          return i;
-        });
-        trpcUtils.inventory.listarItensDoInventario.setData({ inventarioId }, updated);
+      // Sincronização em background com debounce: só invalida se não houver mutações pendentes e após 2.5s
+      if (invalidateDebounceTimerRef.current) {
+        clearTimeout(invalidateDebounceTimerRef.current);
       }
-
-      // Só invalida (refaz a query real com dados do legado) quando não há mais mutações pendentes
-      if (pendingMutationsRef.current === 0) {
-        void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
-      }
+      invalidateDebounceTimerRef.current = setTimeout(() => {
+        if (pendingMutationsRef.current === 0) {
+          void trpcUtils.inventory.listarItensDoInventario.invalidate({ inventarioId });
+        }
+      }, 2500);
     },
     onError: (_err, _newItem, context) => {
       pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
@@ -535,6 +568,7 @@ export default function InventarioPage() {
                   <tr className="text-[10px] uppercase tracking-wider text-slate-400">
                     <th className="px-4 py-3 font-semibold">Código de Barras</th>
                     <th className="px-4 py-3 font-semibold">Minuta</th>
+                    <th className="px-4 py-3 font-semibold">Parcial</th>
                     <th className="px-4 py-3 font-semibold">Total Minuta</th>
                     <th className="px-4 py-3 font-semibold">Lidos</th>
                     <th className="px-4 py-3 font-semibold">Status</th>

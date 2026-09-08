@@ -222,12 +222,15 @@ export const inventoryRouter = createTRPCRouter({
       // 2. Buscar o último registro desse código de barras no banco legado
       // JOIN com picking filtrando pelo mesmo tipo da movimentação,
       // para garantir que pegamos o desembarque/embarque correto.
+      // Ordenação prioriza minutas mais recentes (h.data DESC) e ID mais recente.
       const rows = await dbReadonly`
         SELECT DISTINCT ON (h.barra)
           h.barra,
           p.unidade       AS unidade_teorica,
           p.tipo          AS tipo_picking,
           v.id_minuta,
+          v.parcial,
+          m.total_volumes,
           h.manifesto     AS id_manifesto,
           m.status        AS minuta_status,
           m.prev_entrega,
@@ -245,7 +248,7 @@ export const inventoryRouter = createTRPCRouter({
         INNER JOIN minuta m ON v.id_minuta = m.id_minuta
         WHERE h.barra = ${input.codigoBarra}
           AND m.cte_numero != 0
-        ORDER BY h.barra, h.id DESC
+        ORDER BY h.barra, h.data DESC, h.id DESC
       `;
 
       const ultimoRegistro = rows[0];
@@ -316,6 +319,8 @@ export const inventoryRouter = createTRPCRouter({
           origem_nome:   ultimoRegistro.origem_nome as string | null,
           destino_nome:  ultimoRegistro.destino_nome as string | null,
           minuta_status: minutaStatus,
+          parcial:       ultimoRegistro.parcial != null ? Number(ultimoRegistro.parcial) : null,
+          total_volumes: ultimoRegistro.total_volumes != null ? Number(ultimoRegistro.total_volumes) : null,
         } : null,
         info: {
           unidadeAtual,
@@ -366,12 +371,13 @@ export const inventoryRouter = createTRPCRouter({
         SELECT DISTINCT ON (h.barra)
           h.barra,
           v.id_minuta,
+          v.parcial,
           m.total_volumes
         FROM historico_volume h
         INNER JOIN volumes v ON h.id_volume = v.id_volume
         INNER JOIN minuta m ON v.id_minuta = m.id_minuta
         WHERE h.barra = ANY(${barcodes})
-        ORDER BY h.barra, h.id DESC
+        ORDER BY h.barra, h.data DESC, h.id DESC
       `;
 
       const detalheMap = new Map(
@@ -379,6 +385,7 @@ export const inventoryRouter = createTRPCRouter({
           String(d.barra),
           {
             id_minuta: d.id_minuta ? Number(d.id_minuta) : null,
+            parcial: d.parcial != null ? Number(d.parcial) : null,
             total_volumes: d.total_volumes ? Number(d.total_volumes) : null,
           },
         ])
@@ -389,6 +396,7 @@ export const inventoryRouter = createTRPCRouter({
         return {
           ...item,
           id_minuta: d?.id_minuta ?? null,
+          parcial: d?.parcial ?? null,
           total_volumes: d?.total_volumes ?? null,
         };
       });
@@ -585,6 +593,7 @@ export const inventoryRouter = createTRPCRouter({
           praca:        string | null;
           minuta_status: number | null;
           total_volumes: number | null;
+          parcial:      number | null;
         } | null;
         ultima_bipagem: {
           unidade_nome: string | null;
@@ -632,6 +641,7 @@ export const inventoryRouter = createTRPCRouter({
             h.barra,
             h.manifesto       AS id_manifesto,
             v.id_minuta,
+            v.parcial,
             m.prev_entrega,
             COALESCE(
               ro.rota,
@@ -655,7 +665,7 @@ export const inventoryRouter = createTRPCRouter({
           LEFT JOIN rotas rd ON m.destino::text = rd.id_rota::text
           LEFT JOIN rotas ro ON m.origem::text = ro.id_rota::text
           WHERE h.barra = ANY(${allBarcodes})
-          ORDER BY h.barra, h.id DESC
+          ORDER BY h.barra, h.data DESC, h.id DESC
         `;
 
         const detalheMap = new Map(
@@ -671,6 +681,7 @@ export const inventoryRouter = createTRPCRouter({
               praca:         d.praca         as string | null,
               minuta_status: d.minuta_status ? Number(d.minuta_status) : null,
               total_volumes: d.total_volumes ? Number(d.total_volumes) : null,
+              parcial:       d.parcial != null ? Number(d.parcial)     : null,
               cte_zero:      String(d.cte_numero ?? '') === '0',
             },
           ])
@@ -1092,20 +1103,76 @@ export const inventoryRouter = createTRPCRouter({
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize,
         include: {
-          itens: { select: { status_auditoria: true } },
+          itens: { select: { status_auditoria: true, codigo_barra: true } },
           _count: { select: { itens: true } }
         }
       });
 
+      // Coleta todos os barcodes para identificar minutas e totais de volumes no banco legado
+      const todosBarcodes = inventariosDb.flatMap(inv => inv.itens.map(i => i.codigo_barra));
+      const barcodeParaMinuta = new Map<string, number>();
+      const minutasUnicasEncontradas = new Set<number>();
+
+      if (todosBarcodes.length > 0) {
+        const detalhesBarcodes = await dbReadonly`
+          SELECT DISTINCT ON (h.barra)
+            h.barra,
+            v.id_minuta
+          FROM historico_volume h
+          INNER JOIN volumes v ON h.id_volume = v.id_volume
+          WHERE h.barra = ANY(${todosBarcodes})
+          ORDER BY h.barra, h.data DESC, h.id DESC
+        `;
+
+        for (const row of detalhesBarcodes) {
+          if (row.id_minuta) {
+            barcodeParaMinuta.set(String(row.barra), Number(row.id_minuta));
+            minutasUnicasEncontradas.add(Number(row.id_minuta));
+          }
+        }
+      }
+
+      // Descobrir total de volumes de cada minuta no legado
+      const totaisPorMinuta = new Map<number, number>();
+      if (minutasUnicasEncontradas.size > 0) {
+        const arrayMinutas = Array.from(minutasUnicasEncontradas);
+        const contagemVolumes = await dbReadonly`
+          SELECT id_minuta, COUNT(id_volume) as total_volumes
+          FROM volumes
+          WHERE id_minuta = ANY(${arrayMinutas})
+          GROUP BY id_minuta
+        `;
+
+        for (const row of contagemVolumes) {
+          totaisPorMinuta.set(Number(row.id_minuta), Number(row.total_volumes));
+        }
+      }
+
       const items = inventariosDb.map(inv => {
-        let corretos = 0;
-        let divergentes = 0;
-        let extravios = 0;
+        let bipados = 0;
+        const bipadosPorMinuta = new Map<number, number>();
 
         for (const item of inv.itens) {
-          if (item.status_auditoria === "ENCONTRADO_CORRETO") corretos++;
-          else divergentes++;
-          if (item.status_auditoria === "POSSIVEL_EXTRAVIO") extravios++;
+          if (item.status_auditoria !== "FALTANTE") {
+            bipados++;
+            const mId = barcodeParaMinuta.get(String(item.codigo_barra));
+            if (mId) {
+              bipadosPorMinuta.set(mId, (bipadosPorMinuta.get(mId) ?? 0) + 1);
+            }
+          }
+        }
+
+        // Divergência: quantidade de minutas com volumes faltantes do total
+        // Faltantes: soma da quantidade de volumes faltantes dessas minutas
+        let divergencias = 0;
+        let faltantes = 0;
+
+        for (const [mId, qtdBipada] of bipadosPorMinuta.entries()) {
+          const totalMinuta = totaisPorMinuta.get(mId) ?? 0;
+          if (qtdBipada > 0 && qtdBipada < totalMinuta) {
+            divergencias++;
+            faltantes += (totalMinuta - qtdBipada);
+          }
         }
 
         return {
@@ -1114,10 +1181,9 @@ export const inventoryRouter = createTRPCRouter({
           status: inv.status,
           criadoEm: inv.criadoEm,
           atualizadoEm: inv.atualizadoEm,
-          bipados: inv._count.itens,
-          corretos,
-          divergentes,
-          extravios,
+          bipados,
+          divergencias,
+          faltantes,
         };
       });
 
