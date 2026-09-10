@@ -5,7 +5,7 @@ import { api } from "@/trpc/react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import Image from "next/image";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -255,6 +255,85 @@ export default function RelatorioInventarioPage() {
     { enabled: !!unidadeId }
   );
 
+  const trpcUtils = api.useUtils();
+  const [modalAdicionarAberto, setModalAdicionarAberto] = useState(false);
+  const [codigoAdicionar, setCodigoAdicionar] = useState("");
+  const [feedbackAdicionar, setFeedbackAdicionar] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
+  const [ultimosAdicionados, setUltimosAdicionados] = useState<string[]>([]);
+  const inputAdicionarRef = useRef<HTMLInputElement>(null);
+  const scannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (modalAdicionarAberto) {
+      setTimeout(() => inputAdicionarRef.current?.focus(), 100);
+    }
+  }, [modalAdicionarAberto]);
+
+  const adicionarMutation = api.inventory.processarBipagemDiaria.useMutation({
+    onSuccess: (res) => {
+      if (res.duplicado) {
+        setFeedbackAdicionar({
+          type: "warning",
+          message: `Código ${res.item.codigo_barra} já está registrado como lido neste inventário.`
+        });
+      } else if (res.recuperadoFaltante) {
+        setFeedbackAdicionar({
+          type: "success",
+          message: `Volume ${res.item.codigo_barra} recuperado! Baixado da lista de faltantes com sucesso.`
+        });
+        setUltimosAdicionados(prev => [res.item.codigo_barra, ...prev]);
+        void trpcUtils.inventory.obterRelatorioInventario.invalidate({ inventarioId });
+      } else {
+        setFeedbackAdicionar({
+          type: "success",
+          message: `Volume ${res.item.codigo_barra} adicionado com sucesso ao inventário!`
+        });
+        setUltimosAdicionados(prev => [res.item.codigo_barra, ...prev]);
+        void trpcUtils.inventory.obterRelatorioInventario.invalidate({ inventarioId });
+      }
+      setCodigoAdicionar("");
+      inputAdicionarRef.current?.focus();
+    },
+    onError: (err) => {
+      setFeedbackAdicionar({
+        type: "error",
+        message: err.message || "Erro ao adicionar volume."
+      });
+      inputAdicionarRef.current?.focus();
+    }
+  });
+
+  const submeterCodigoAdicionar = (val: string) => {
+    const trimmed = val.trim();
+    if (!trimmed) return;
+    if (trimmed.length !== 17) {
+      setFeedbackAdicionar({
+        type: "warning",
+        message: "O código de barras deve ter exatamente 17 dígitos."
+      });
+      return;
+    }
+    adicionarMutation.mutate({ inventarioId, codigoBarra: trimmed });
+  };
+
+  const handleAdicionarSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (scannerTimerRef.current) clearTimeout(scannerTimerRef.current);
+    submeterCodigoAdicionar(codigoAdicionar);
+  };
+
+  const handleAdicionarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCodigoAdicionar(val);
+
+    if (scannerTimerRef.current) clearTimeout(scannerTimerRef.current);
+    if (val.trim().length === 17) {
+      scannerTimerRef.current = setTimeout(() => {
+        submeterCodigoAdicionar(val);
+      }, 150);
+    }
+  };
+
 
 
   const divergenciasSeguras = useMemo(() => data?.divergencias ?? [], [data?.divergencias]);
@@ -431,6 +510,30 @@ export default function RelatorioInventarioPage() {
 
           <div className="flex flex-wrap gap-3 mt-4 sm:mt-0">
             <button
+              onClick={() => {
+                setModalAdicionarAberto(true);
+                setCodigoAdicionar("");
+                setFeedbackAdicionar(null);
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all shadow-sm hover:shadow"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Adicionar Volume
+            </button>
+
+            <Link
+              href={`/inventario/${inventarioId}`}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl transition-colors border border-slate-200 shadow-sm"
+            >
+              <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M3 8h18M3 12h18M3 16h18M3 20h18" />
+              </svg>
+              Ir para Bipagem
+            </Link>
+
+            <button
               onClick={exportarParaExcel}
               className="inline-flex items-center justify-center px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-xl transition-colors border border-emerald-200 shadow-sm"
             >
@@ -512,6 +615,116 @@ export default function RelatorioInventarioPage() {
         </div>
 
       </div>
+
+      {/* Modal Adicionar Volume */}
+      {modalAdicionarAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-lg shadow-2xl border border-slate-100 transform transition-all">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800">Adicionar Volume</h3>
+                  <p className="text-xs text-slate-400">Mesmo com o relatório finalizado</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalAdicionarAberto(false)}
+                className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-sm text-slate-500 mb-5">
+              Aponte o leitor de código de barras ou digite o código de 17 dígitos. O volume será registrado e o relatório atualizado automaticamente.
+            </p>
+
+            <form onSubmit={handleAdicionarSubmit} className="space-y-4">
+              <div>
+                <input
+                  ref={inputAdicionarRef}
+                  type="text"
+                  autoFocus
+                  value={codigoAdicionar}
+                  onChange={handleAdicionarChange}
+                  placeholder="Aguardando código de barras..."
+                  className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-2xl focus:border-indigo-600 focus:ring-0 font-mono text-lg transition-all"
+                  autoComplete="off"
+                />
+              </div>
+
+              {feedbackAdicionar && (
+                <div
+                  className={[
+                    "p-3.5 rounded-xl text-sm flex items-start gap-2.5 transition-all",
+                    feedbackAdicionar.type === "success"
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      : feedbackAdicionar.type === "warning"
+                      ? "bg-amber-50 text-amber-800 border border-amber-200"
+                      : "bg-red-50 text-red-800 border border-red-200",
+                  ].join(" ")}
+                >
+                  <span className="text-base leading-none mt-0.5">
+                    {feedbackAdicionar.type === "success" ? "✓" : "⚠️"}
+                  </span>
+                  <p className="font-medium text-xs leading-relaxed">{feedbackAdicionar.message}</p>
+                </div>
+              )}
+
+              {ultimosAdicionados.length > 0 && (
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Adicionados nesta sessão ({ultimosAdicionados.length})
+                  </p>
+                  <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto">
+                    {ultimosAdicionados.map((c, idx) => (
+                      <span key={idx} className="font-mono text-xs bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-semibold shadow-sm">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2">
+                <Link
+                  href={`/inventario/${inventarioId}`}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Bipagem em tela cheia
+                </Link>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalAdicionarAberto(false)}
+                    className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold text-sm transition-colors"
+                  >
+                    Fechar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={adicionarMutation.isPending || !codigoAdicionar.trim()}
+                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    {adicionarMutation.isPending ? "Adicionando..." : "Adicionar"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

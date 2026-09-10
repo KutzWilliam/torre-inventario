@@ -205,7 +205,7 @@ export const inventoryRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // 1. Buscar o inventário atual no Prisma para descobrir a unidade
+      // 1. Buscar o inventário no Prisma
       const inventario = await ctx.db.inventario.findUnique({
         where: { id: input.inventarioId },
       });
@@ -217,203 +217,80 @@ export const inventoryRouter = createTRPCRouter({
         });
       }
 
-      const unidadeAtual = inventario.unidade_id;
-
-      // 2. Buscar o registro desse código de barras no banco legado
-      // Busca PRIMÁRIA na tabela pre_minuta (malote = codigoBarra)
-      const rowsPreMinuta = await dbReadonly`
-        SELECT
-          pm.malote       AS barra,
-          pm.id_minuta,
-          m.status        AS minuta_status,
-          m.prev_entrega,
-          m.total_volumes,
-          m.cte_numero,
-          COALESCE(
-            (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.origem::text LIMIT 1),
-            m.origem
-          )               AS origem_nome,
-          COALESCE(
-            (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.destino::text LIMIT 1),
-            m.destino
-          )               AS destino_nome
-        FROM pre_minuta pm
-        INNER JOIN minuta m ON pm.id_minuta = m.id_minuta
-        WHERE pm.malote = ${input.codigoBarra}
-          AND m.cte_numero != 0
-        ORDER BY pm.data_hora DESC
-        LIMIT 1
-      `;
-
-      let ultimoRegistro: {
-        barra: string;
-        unidade_teorica: number | null;
-        tipo_picking: number | null;
-        id_minuta: number | null;
-        parcial: number | null;
-        total_volumes: number | null;
-        id_manifesto: number | null;
-        minuta_status: number | null;
-        prev_entrega: string | null;
-        origem_nome: string | null;
-        destino_nome: string | null;
-      } | null = null;
-
-      if (rowsPreMinuta[0]) {
-        // Encontrado via pre_minuta (primário).
-        // Busca se existe algum histórico de movimentação para obter tipo de picking/unidade teórica se houver
-        const rowsMovimento = await dbReadonly`
-          SELECT
-            p.unidade   AS unidade_teorica,
-            p.tipo      AS tipo_picking,
-            v.parcial,
-            h.manifesto AS id_manifesto
-          FROM historico_volume h
-          INNER JOIN picking p ON h.manifesto = p.id_manifesto AND p.tipo = h.tipo
-          LEFT JOIN volumes v ON h.id_volume = v.id_volume
-          WHERE h.barra = ${input.codigoBarra}
-          ORDER BY h.data DESC, h.id DESC
-          LIMIT 1
-        `;
-
-        const pm = rowsPreMinuta[0];
-        const mov = rowsMovimento[0];
-        ultimoRegistro = {
-          barra:           String(pm.barra),
-          unidade_teorica: mov?.unidade_teorica != null ? Number(mov.unidade_teorica) : null,
-          tipo_picking:    mov?.tipo_picking != null ? Number(mov.tipo_picking) : null,
-          id_minuta:       pm.id_minuta != null ? Number(pm.id_minuta) : null,
-          parcial:         mov?.parcial != null ? Number(mov.parcial) : null,
-          total_volumes:   pm.total_volumes != null ? Number(pm.total_volumes) : null,
-          id_manifesto:    mov?.id_manifesto != null ? Number(mov.id_manifesto) : null,
-          minuta_status:   pm.minuta_status != null ? Number(pm.minuta_status) : null,
-          prev_entrega:    pm.prev_entrega != null ? String(pm.prev_entrega) : null,
-          origem_nome:     pm.origem_nome != null ? String(pm.origem_nome) : null,
-          destino_nome:    pm.destino_nome != null ? String(pm.destino_nome) : null,
-        };
-      } else {
-        // Fallback: se não encontrou em pre_minuta, busca pelo historico_volume
-        const rowsHistorico = await dbReadonly`
-          SELECT DISTINCT ON (h.barra)
-            h.barra,
-            p.unidade       AS unidade_teorica,
-            p.tipo          AS tipo_picking,
-            v.id_minuta,
-            v.parcial,
-            m.total_volumes,
-            h.manifesto     AS id_manifesto,
-            m.status        AS minuta_status,
-            m.prev_entrega,
-            COALESCE(
-              (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.origem::text LIMIT 1),
-              m.origem
-            )               AS origem_nome,
-            COALESCE(
-              (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.destino::text LIMIT 1),
-              m.destino
-            )               AS destino_nome
-          FROM historico_volume h
-          INNER JOIN picking p ON h.manifesto = p.id_manifesto AND p.tipo = h.tipo
-          INNER JOIN volumes v ON h.id_volume = v.id_volume
-          INNER JOIN minuta m ON v.id_minuta = m.id_minuta
-          WHERE h.barra = ${input.codigoBarra}
-            AND m.cte_numero != 0
-          ORDER BY h.barra, h.data DESC, h.id DESC
-        `;
-
-        const hist = rowsHistorico[0];
-        if (hist) {
-          ultimoRegistro = {
-            barra:           String(hist.barra),
-            unidade_teorica: hist.unidade_teorica != null ? Number(hist.unidade_teorica) : null,
-            tipo_picking:    hist.tipo_picking != null ? Number(hist.tipo_picking) : null,
-            id_minuta:       hist.id_minuta != null ? Number(hist.id_minuta) : null,
-            parcial:         hist.parcial != null ? Number(hist.parcial) : null,
-            total_volumes:   hist.total_volumes != null ? Number(hist.total_volumes) : null,
-            id_manifesto:    hist.id_manifesto != null ? Number(hist.id_manifesto) : null,
-            minuta_status:   hist.minuta_status != null ? Number(hist.minuta_status) : null,
-            prev_entrega:    hist.prev_entrega != null ? String(hist.prev_entrega) : null,
-            origem_nome:     hist.origem_nome != null ? String(hist.origem_nome) : null,
-            destino_nome:    hist.destino_nome != null ? String(hist.destino_nome) : null,
-          };
-        }
-      }
-
-      // 3. Determinar o status da auditoria baseado na regra de negócio
-      // Minuta finalizada (6) ou cancelada (13) = possível extravio
-      // Última bipagem = desembarque nessa unidade + minuta ativa = encontrado correto
-      // Qualquer outra situação = sobra na base
-      let statusAuditoria = "SOBRA_NA_BASE";
-      const minutaStatus = ultimoRegistro ? Number(ultimoRegistro.minuta_status) : null;
-
-      if (ultimoRegistro) {
-        if (minutaStatus === 6 || minutaStatus === 13) {
-          statusAuditoria = "POSSIVEL_EXTRAVIO";
-        } else {
-          const isDesembarque = Number(ultimoRegistro.tipo_picking) === 2;
-          const isMesmaUnidade = Number(ultimoRegistro.unidade_teorica) === unidadeAtual;
-
-          if (isDesembarque && isMesmaUnidade) {
-            statusAuditoria = "ENCONTRADO_CORRETO";
-          }
-        }
-      }
-
-      // 4. Verificar duplicata — mesmo código já bipado neste inventário
+      // 2. Verificar se o item já existe neste inventário no banco local (Prisma)
       const itemExistente = await ctx.db.itemInventario.findFirst({
         where: {
           inventario_id: input.inventarioId,
-          codigo_barra:  input.codigoBarra,
+          codigo_barra: input.codigoBarra,
         },
       });
 
       if (itemExistente) {
-        // Retorna sem salvar; o frontend exibe aviso de duplicata
+        // Se o item estava marcado como FALTANTE (gerado ao finalizar anteriormente),
+        // significa que o volume foi encontrado agora! Atualizamos para lido.
+        if (itemExistente.status_auditoria === "FALTANTE") {
+          const itemAtualizado = await ctx.db.itemInventario.update({
+            where: { id: itemExistente.id },
+            data: {
+              status_auditoria: "ENCONTRADO_CORRETO",
+              criadoEm: new Date(),
+            },
+          });
+
+          return {
+            success: true,
+            duplicado: false,
+            recuperadoFaltante: true,
+            item: itemAtualizado,
+            detalhe: null,
+            info: {
+              unidadeAtual: inventario.unidade_id,
+              unidadeTeorica: null,
+              tipoPicking: null,
+              foiEncontradoCorreto: true,
+              ehExtravio: false,
+            },
+          };
+        }
+
+        // Caso contrário, já foi bipado anteriormente como lido
         return {
-          success:   false,
+          success: false,
           duplicado: true,
-          item:      itemExistente,
-          detalhe:   null,
+          recuperadoFaltante: false,
+          item: itemExistente,
+          detalhe: null,
           info: {
-            unidadeAtual,
-            unidadeTeorica:       null,
-            tipoPicking:          null,
+            unidadeAtual: inventario.unidade_id,
+            unidadeTeorica: null,
+            tipoPicking: null,
             foiEncontradoCorreto: false,
-            ehExtravio:           false,
+            ehExtravio: false,
           },
         };
       }
 
-      // 5. Salvar o item bipado no banco (Prisma)
+      // 3. Grava imediatamente no banco local (Prisma) sem consulta externa
       const item = await ctx.db.itemInventario.create({
         data: {
           inventario_id: input.inventarioId,
-          codigo_barra:  input.codigoBarra,
-          status_auditoria: statusAuditoria,
+          codigo_barra: input.codigoBarra,
+          status_auditoria: "ENCONTRADO_CORRETO",
         },
       });
 
-      // 6. Retornar o resultado para o frontend
       return {
-        success:   true,
+        success: true,
         duplicado: false,
+        recuperadoFaltante: false,
         item,
-        detalhe: ultimoRegistro ? {
-          id_minuta:     ultimoRegistro.id_minuta ? Number(ultimoRegistro.id_minuta) : null,
-          id_manifesto:  ultimoRegistro.id_manifesto ? Number(ultimoRegistro.id_manifesto) : null,
-          prev_entrega:  ultimoRegistro.prev_entrega,
-          origem_nome:   ultimoRegistro.origem_nome,
-          destino_nome:  ultimoRegistro.destino_nome,
-          minuta_status: minutaStatus,
-          parcial:       ultimoRegistro.parcial != null ? Number(ultimoRegistro.parcial) : null,
-          total_volumes: ultimoRegistro.total_volumes != null ? Number(ultimoRegistro.total_volumes) : null,
-        } : null,
+        detalhe: null,
         info: {
-          unidadeAtual,
-          unidadeTeorica: ultimoRegistro ? Number(ultimoRegistro.unidade_teorica) : null,
-          tipoPicking:    ultimoRegistro ? Number(ultimoRegistro.tipo_picking) : null,
-          foiEncontradoCorreto: statusAuditoria === "ENCONTRADO_CORRETO",
-          ehExtravio:           statusAuditoria === "POSSIVEL_EXTRAVIO",
+          unidadeAtual: inventario.unidade_id,
+          unidadeTeorica: null,
+          tipoPicking: null,
+          foiEncontradoCorreto: true,
+          ehExtravio: false,
         },
       };
     }),
@@ -421,19 +298,6 @@ export const inventoryRouter = createTRPCRouter({
   removerItem: publicProcedure
     .input(z.object({ itemId: z.string(), inventarioId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      // Garante que o inventário ainda está aberto
-      const inventario = await ctx.db.inventario.findUnique({
-        where: { id: input.inventarioId },
-        select: { status: true },
-      });
-
-      if (inventario?.status !== "ABERTO") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Inventário já foi finalizado. Não é possível remover itens.",
-        });
-      }
-
       await ctx.db.itemInventario.delete({
         where: { id: input.itemId },
       });
@@ -444,75 +308,17 @@ export const inventoryRouter = createTRPCRouter({
   listarItensDoInventario: publicProcedure
     .input(z.object({ inventarioId: z.string() }))
     .query(async ({ ctx, input }) => {
+      // Retorna apenas os itens lidos gravados no Prisma de forma ultra-rápida,
+      // sem consultar o banco externo
       const itens = await ctx.db.itemInventario.findMany({
-        where: { inventario_id: input.inventarioId },
+        where: { 
+          inventario_id: input.inventarioId,
+          status_auditoria: { not: "FALTANTE" },
+        },
         orderBy: { criadoEm: "desc" },
       });
 
-      if (itens.length === 0) return [];
-
-      const barcodes = itens.map((i) => i.codigo_barra);
-
-      // 1. Busca primária em pre_minuta
-      const detalhesPreMinuta = await dbReadonly`
-        SELECT DISTINCT ON (pm.malote)
-          pm.malote AS barra,
-          pm.id_minuta,
-          m.total_volumes
-        FROM pre_minuta pm
-        INNER JOIN minuta m ON pm.id_minuta = m.id_minuta
-        WHERE pm.malote = ANY(${barcodes})
-        ORDER BY pm.malote, pm.data_hora DESC
-      `;
-
-      const detalheMap = new Map<string, {
-        id_minuta: number | null;
-        parcial: number | null;
-        total_volumes: number | null;
-      }>();
-
-      for (const d of detalhesPreMinuta) {
-        detalheMap.set(String(d.barra), {
-          id_minuta: d.id_minuta ? Number(d.id_minuta) : null,
-          parcial: null,
-          total_volumes: d.total_volumes ? Number(d.total_volumes) : null,
-        });
-      }
-
-      // 2. Fallback em historico_volume para as barras que não foram achadas em pre_minuta
-      const barcodesFaltantes = barcodes.filter((b) => !detalheMap.has(b));
-      if (barcodesFaltantes.length > 0) {
-        const detalhesHistorico = await dbReadonly`
-          SELECT DISTINCT ON (h.barra)
-            h.barra,
-            v.id_minuta,
-            v.parcial,
-            m.total_volumes
-          FROM historico_volume h
-          INNER JOIN volumes v ON h.id_volume = v.id_volume
-          INNER JOIN minuta m ON v.id_minuta = m.id_minuta
-          WHERE h.barra = ANY(${barcodesFaltantes})
-          ORDER BY h.barra, h.data DESC, h.id DESC
-        `;
-
-        for (const d of detalhesHistorico) {
-          detalheMap.set(String(d.barra), {
-            id_minuta: d.id_minuta ? Number(d.id_minuta) : null,
-            parcial: d.parcial != null ? Number(d.parcial) : null,
-            total_volumes: d.total_volumes ? Number(d.total_volumes) : null,
-          });
-        }
-      }
-
-      return itens.map((item) => {
-        const d = detalheMap.get(item.codigo_barra);
-        return {
-          ...item,
-          id_minuta: d?.id_minuta ?? null,
-          parcial: d?.parcial ?? null,
-          total_volumes: d?.total_volumes ?? null,
-        };
-      });
+      return itens;
     }),
 
   listarInventarios: publicProcedure
@@ -561,10 +367,11 @@ export const inventoryRouter = createTRPCRouter({
       }
 
       if (inventario.status === "CONCLUIDO") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Este inventário já está fechado.",
-        });
+        return {
+          success: true,
+          fechado: true,
+          jaEstavaFechado: true,
+        };
       }
 
       const unidadeId = inventario.unidade_id;
@@ -888,6 +695,27 @@ export const inventoryRouter = createTRPCRouter({
               parcial:       d.parcial != null ? Number(d.parcial)     : null,
               cte_zero:      String(d.cte_numero ?? '') === '0',
             });
+          }
+        }
+
+        // Tenta preencher parcial para itens que foram encontrados via pre_minuta
+        const parciaisFaltantes = allBarcodes.filter((b) => detalheMap.get(b)?.parcial == null);
+        if (parciaisFaltantes.length > 0) {
+          const parciaisAchados = await dbReadonly`
+            SELECT DISTINCT ON (h.barra)
+              h.barra,
+              v.parcial
+            FROM historico_volume h
+            INNER JOIN volumes v ON h.id_volume = v.id_volume
+            WHERE h.barra = ANY(${parciaisFaltantes})
+              AND v.parcial IS NOT NULL
+            ORDER BY h.barra, h.id DESC
+          `;
+          for (const p of parciaisAchados) {
+            const item = detalheMap.get(String(p.barra));
+            if (item && p.parcial != null) {
+              item.parcial = Number(p.parcial);
+            }
           }
         }
 
