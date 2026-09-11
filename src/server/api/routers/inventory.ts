@@ -396,25 +396,27 @@ export const inventoryRouter = createTRPCRouter({
         : dbReadonly``;
 
       const teoricos = await dbReadonly`
-        -- Obtém a última movimentação de cada barra nos últimos 90 dias
+        -- Obtém a última movimentação de cada barras nos últimos 90 dias
+        -- via tabela volumes (primário, cobre volumes nunca bipados via historico_volume)
         -- e verifica se esse último movimento foi DESEMBARQUE nessa unidade.
         -- Volumes que já foram embarcados após o desembarque NÃO aparecem aqui.
-        SELECT barra
+        SELECT barras AS barra
         FROM (
-          SELECT DISTINCT ON (h.barra)
-            h.barra,
+          SELECT DISTINCT ON (v.barras)
+            v.barras,
             p.unidade AS picking_unidade,
             p.tipo    AS picking_tipo,
             r.praca   AS praca
-          FROM historico_volume h
+          FROM volumes v
+          INNER JOIN historico_volume h ON h.id_volume = v.id_volume
           INNER JOIN picking p ON h.manifesto = p.id_manifesto AND p.tipo = h.tipo
-          INNER JOIN volumes  v ON h.id_volume  = v.id_volume
           INNER JOIN minuta   m ON v.id_minuta  = m.id_minuta
           LEFT JOIN rotas r ON m.rota::text = r.id::text
           WHERE h.data >= NOW() - INTERVAL '90 days'
+            AND v.barras IS NOT NULL AND LENGTH(v.barras) = 17
             AND m.status NOT IN (6, 13)
             AND m.cte_numero != 0
-          ORDER BY h.barra, h.id DESC  -- Pega o último registro de cada barra
+          ORDER BY v.barras, h.id DESC  -- Pega o último registro de cada barras
         ) ultima_mov
         WHERE picking_tipo = 2                       -- Última ação = desembarque
           AND picking_unidade = ${unidadeId}         -- Nessa unidade especificamente
@@ -531,33 +533,60 @@ export const inventoryRouter = createTRPCRouter({
       if (itens.length > 0) {
         const barcodesIniciais = itens.map((d) => d.codigo_barra);
 
-        // 1. Encontrar as minutas associadas aos itens bipados (primário: pre_minuta, fallback: historico_volume)
-        const minutasPreMinuta = await dbReadonly`
-          SELECT DISTINCT pm.id_minuta, pm.malote AS barra
-          FROM pre_minuta pm
-          WHERE pm.malote = ANY(${barcodesIniciais})
+        // 1. Encontrar as minutas associadas aos itens bipados
+        //    PRIMÁRIO: volumes.barras (cobre todos os volumes, inclusive sem bipagem)
+        //    FALLBACK: pre_minuta → historico_volume
+        const minutasVolumes = await dbReadonly`
+          SELECT DISTINCT v.id_minuta, v.barras AS barra
+          FROM volumes v
+          WHERE v.barras = ANY(${barcodesIniciais})
+            AND v.barras IS NOT NULL AND LENGTH(v.barras) = 17
         `;
 
-        const barrasAchadasPreMinuta = new Set(minutasPreMinuta.map((m) => String(m.barra)));
-        const barcodesFaltantesMinuta = barcodesIniciais.filter((b) => !barrasAchadasPreMinuta.has(b));
+        const barrasAchadasVolumes = new Set(minutasVolumes.map((m) => String(m.barra)));
+        const barcodesFaltantesMinuta = barcodesIniciais.filter((b) => !barrasAchadasVolumes.has(b));
 
-        const minutasHistorico = barcodesFaltantesMinuta.length > 0
+        // Fallback: pre_minuta
+        const minutasPreMinuta = barcodesFaltantesMinuta.length > 0
+          ? await dbReadonly`
+              SELECT DISTINCT pm.id_minuta, pm.malote AS barra
+              FROM pre_minuta pm
+              WHERE pm.malote = ANY(${barcodesFaltantesMinuta})
+            `
+          : [];
+
+        const barrasAchadasPM = new Set(minutasPreMinuta.map((m) => String(m.barra)));
+        const barcodesFaltantesHist = barcodesFaltantesMinuta.filter((b) => !barrasAchadasPM.has(b));
+
+        // Fallback: historico_volume
+        const minutasHistorico = barcodesFaltantesHist.length > 0
           ? await dbReadonly`
               SELECT DISTINCT v.id_minuta, h.barra
               FROM historico_volume h
               INNER JOIN volumes v ON h.id_volume = v.id_volume
-              WHERE h.barra = ANY(${barcodesFaltantesMinuta})
+              WHERE h.barra = ANY(${barcodesFaltantesHist})
             `
           : [];
 
         const minutaIdsIniciais = Array.from(
           new Set([
+            ...minutasVolumes.map((m) => Number(m.id_minuta)).filter(Boolean),
             ...minutasPreMinuta.map((m) => Number(m.id_minuta)).filter(Boolean),
             ...minutasHistorico.map((m) => Number(m.id_minuta)).filter(Boolean),
           ])
         );
 
-        // 2. Obter todas as barras dessas minutas (consultando pre_minuta e volumes/historico)
+        // 2. Obter TODAS as barras dessas minutas via volumes.barras (primário)
+        const barrasVolumes = minutaIdsIniciais.length > 0
+          ? await dbReadonly`
+              SELECT DISTINCT v.barras AS barra
+              FROM volumes v
+              WHERE v.id_minuta = ANY(${minutaIdsIniciais})
+                AND v.barras IS NOT NULL AND LENGTH(v.barras) = 17
+            `
+          : [];
+
+        // Fallback: barras do pre_minuta que não apareceram nos volumes
         const barrasPreMinuta = minutaIdsIniciais.length > 0
           ? await dbReadonly`
               SELECT DISTINCT pm.malote AS barra
@@ -566,32 +595,27 @@ export const inventoryRouter = createTRPCRouter({
             `
           : [];
 
-        const barrasVolumes = minutaIdsIniciais.length > 0
-          ? await dbReadonly`
-              SELECT 
-                (SELECT h.barra FROM historico_volume h WHERE h.id_volume = v.id_volume ORDER BY h.id DESC LIMIT 1) AS barra
-              FROM volumes v
-              WHERE v.id_minuta = ANY(${minutaIdsIniciais})
-            `
-          : [];
-
         const allBarcodesSet = new Set<string>(barcodesIniciais);
-        for (const b of barrasPreMinuta) {
-          if (b.barra) allBarcodesSet.add(String(b.barra));
-        }
         for (const b of barrasVolumes) {
+          if (b.barra && String(b.barra).length === 17) {
+            allBarcodesSet.add(String(b.barra));
+          }
+        }
+        for (const b of barrasPreMinuta) {
           if (b.barra) allBarcodesSet.add(String(b.barra));
         }
 
         const allBarcodes = Array.from(allBarcodesSet);
 
-        // 3. Buscar detalhes das minutas para todas as barras (primário: pre_minuta, fallback: historico_volume)
-        const detalhesPreMinuta = await dbReadonly`
-          SELECT DISTINCT ON (pm.malote)
-            pm.malote         AS barra,
+        // 3. Buscar detalhes das minutas para todas as barras
+        //    PRIMÁRIO: volumes (tem parcial diretamente, sem subquery)
+        //    FALLBACK: pre_minuta → historico_volume
+        const detalhesVolumes = await dbReadonly`
+          SELECT DISTINCT ON (v.barras)
+            v.barras          AS barra,
             NULL::bigint      AS id_manifesto,
-            pm.id_minuta,
-            NULL::integer     AS parcial,
+            v.id_minuta,
+            v.parcial,
             m.prev_entrega,
             COALESCE(
               ro.rota,
@@ -608,13 +632,14 @@ export const inventoryRouter = createTRPCRouter({
             m.status          AS minuta_status,
             m.total_volumes   AS total_volumes,
             m.cte_numero      AS cte_numero
-          FROM pre_minuta pm
-          INNER JOIN minuta m ON pm.id_minuta = m.id_minuta
+          FROM volumes v
+          INNER JOIN minuta m ON v.id_minuta = m.id_minuta
           LEFT JOIN rotas r ON m.rota::text = r.id::text
           LEFT JOIN rotas rd ON m.destino::text = rd.id_rota::text
           LEFT JOIN rotas ro ON m.origem::text = ro.id_rota::text
-          WHERE pm.malote = ANY(${allBarcodes})
-          ORDER BY pm.malote, pm.data_hora DESC
+          WHERE v.barras = ANY(${allBarcodes})
+            AND v.barras IS NOT NULL AND LENGTH(v.barras) = 17
+          ORDER BY v.barras
         `;
 
         const detalheMap = new Map<string, {
@@ -631,10 +656,10 @@ export const inventoryRouter = createTRPCRouter({
           cte_zero: boolean;
         }>();
 
-        for (const d of detalhesPreMinuta) {
+        for (const d of detalhesVolumes) {
           detalheMap.set(String(d.barra), {
             id_minuta:     d.id_minuta     ? Number(d.id_minuta)     : null,
-            id_manifesto:  d.id_manifesto  ? Number(d.id_manifesto)  : null,
+            id_manifesto:  null,
             prev_entrega:  d.prev_entrega  as string | null,
             origem_nome:   d.origem_nome   as string | null,
             destino_nome:  d.destino_nome  as string | null,
@@ -649,6 +674,56 @@ export const inventoryRouter = createTRPCRouter({
 
         const barcodesSemDetalhes = allBarcodes.filter((b) => !detalheMap.has(b));
         if (barcodesSemDetalhes.length > 0) {
+          const detalhesPreMinuta = await dbReadonly`
+            SELECT DISTINCT ON (pm.malote)
+              pm.malote         AS barra,
+              NULL::bigint      AS id_manifesto,
+              pm.id_minuta,
+              NULL::integer     AS parcial,
+              m.prev_entrega,
+              COALESCE(
+                ro.rota,
+                (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.origem::text LIMIT 1),
+                m.origem
+              )                 AS origem_nome,
+              COALESCE(
+                rd.rota,
+                (SELECT a.aeroporto FROM aero a WHERE a.cidade::text = m.destino::text LIMIT 1),
+                m.destino
+              )                 AS destino_nome,
+              r.rota            AS rota_nome,
+              rd.praca          AS praca,
+              m.status          AS minuta_status,
+              m.total_volumes   AS total_volumes,
+              m.cte_numero      AS cte_numero
+            FROM pre_minuta pm
+            INNER JOIN minuta m ON pm.id_minuta = m.id_minuta
+            LEFT JOIN rotas r ON m.rota::text = r.id::text
+            LEFT JOIN rotas rd ON m.destino::text = rd.id_rota::text
+            LEFT JOIN rotas ro ON m.origem::text = ro.id_rota::text
+            WHERE pm.malote = ANY(${barcodesSemDetalhes})
+            ORDER BY pm.malote, pm.data_hora DESC
+          `;
+
+          for (const d of detalhesPreMinuta) {
+            detalheMap.set(String(d.barra), {
+              id_minuta:     d.id_minuta     ? Number(d.id_minuta)     : null,
+              id_manifesto:  null,
+              prev_entrega:  d.prev_entrega  as string | null,
+              origem_nome:   d.origem_nome   as string | null,
+              destino_nome:  d.destino_nome  as string | null,
+              rota_nome:     d.rota_nome     as string | null,
+              praca:         d.praca         as string | null,
+              minuta_status: d.minuta_status ? Number(d.minuta_status) : null,
+              total_volumes: d.total_volumes ? Number(d.total_volumes) : null,
+              parcial:       null,
+              cte_zero:      String(d.cte_numero ?? '') === '0',
+            });
+          }
+        }
+
+        const barcodesSemDetalhes2 = allBarcodes.filter((b) => !detalheMap.has(b));
+        if (barcodesSemDetalhes2.length > 0) {
           const detalhesHistorico = await dbReadonly`
             SELECT DISTINCT ON (h.barra)
               h.barra,
@@ -677,7 +752,7 @@ export const inventoryRouter = createTRPCRouter({
             LEFT JOIN rotas r ON m.rota::text = r.id::text
             LEFT JOIN rotas rd ON m.destino::text = rd.id_rota::text
             LEFT JOIN rotas ro ON m.origem::text = ro.id_rota::text
-            WHERE h.barra = ANY(${barcodesSemDetalhes})
+            WHERE h.barra = ANY(${barcodesSemDetalhes2})
             ORDER BY h.barra, h.data DESC, h.id DESC
           `;
 
@@ -698,18 +773,17 @@ export const inventoryRouter = createTRPCRouter({
           }
         }
 
-        // Tenta preencher parcial para itens que foram encontrados via pre_minuta
+        // parcial já vem do volumes na consulta primária; para os itens via pre_minuta/historico,
+        // tentamos buscar o parcial via volumes.barras diretamente
         const parciaisFaltantes = allBarcodes.filter((b) => detalheMap.get(b)?.parcial == null);
         if (parciaisFaltantes.length > 0) {
           const parciaisAchados = await dbReadonly`
-            SELECT DISTINCT ON (h.barra)
-              h.barra,
+            SELECT DISTINCT ON (v.barras)
+              v.barras AS barra,
               v.parcial
-            FROM historico_volume h
-            INNER JOIN volumes v ON h.id_volume = v.id_volume
-            WHERE h.barra = ANY(${parciaisFaltantes})
-              AND v.parcial IS NOT NULL
-            ORDER BY h.barra, h.id DESC
+            FROM volumes v
+            WHERE v.barras = ANY(${parciaisFaltantes})
+              AND v.barras IS NOT NULL AND v.parcial IS NOT NULL
           `;
           for (const p of parciaisAchados) {
             const item = detalheMap.get(String(p.barra));
@@ -898,24 +972,44 @@ export const inventoryRouter = createTRPCRouter({
       const minutasUnicasEncontradas = new Set<number>();
 
       if (todosBarcodes.length > 0) {
-        // 1. Busca primária em pre_minuta
-        const detalhesPreMinuta = await dbReadonly`
-          SELECT DISTINCT ON (pm.malote)
-            pm.malote AS barra,
-            pm.id_minuta
-          FROM pre_minuta pm
-          WHERE pm.malote = ANY(${todosBarcodes})
-          ORDER BY pm.malote, pm.data_hora DESC
+        // 1. Busca PRIMÁRIA em volumes.barras (cobre todos os volumes)
+        const detalhesVolumes = await dbReadonly`
+          SELECT DISTINCT ON (v.barras)
+            v.barras AS barra,
+            v.id_minuta
+          FROM volumes v
+          WHERE v.barras = ANY(${todosBarcodes})
+            AND v.barras IS NOT NULL AND LENGTH(v.barras) = 17
         `;
 
-        for (const row of detalhesPreMinuta) {
+        for (const row of detalhesVolumes) {
           if (row.id_minuta) {
             barcodeParaMinuta.set(String(row.barra), Number(row.id_minuta));
             minutasUnicasEncontradas.add(Number(row.id_minuta));
           }
         }
 
-        // 2. Fallback em historico_volume
+        // 2. Fallback em pre_minuta
+        const faltantesPM = todosBarcodes.filter((b) => !barcodeParaMinuta.has(b));
+        if (faltantesPM.length > 0) {
+          const detalhesPreMinuta = await dbReadonly`
+            SELECT DISTINCT ON (pm.malote)
+              pm.malote AS barra,
+              pm.id_minuta
+            FROM pre_minuta pm
+            WHERE pm.malote = ANY(${faltantesPM})
+            ORDER BY pm.malote, pm.data_hora DESC
+          `;
+
+          for (const row of detalhesPreMinuta) {
+            if (row.id_minuta) {
+              barcodeParaMinuta.set(String(row.barra), Number(row.id_minuta));
+              minutasUnicasEncontradas.add(Number(row.id_minuta));
+            }
+          }
+        }
+
+        // 3. Fallback em historico_volume
         const faltantesDashboard = todosBarcodes.filter((b) => !barcodeParaMinuta.has(b));
         if (faltantesDashboard.length > 0) {
           const detalhesBarcodes = await dbReadonly`
@@ -1033,24 +1127,44 @@ export const inventoryRouter = createTRPCRouter({
       const minutasUnicasMes = new Set<number>();
 
       if (todosMesBarcodes.length > 0) {
-        // 1. Busca primária em pre_minuta
-        const detalhesMesPM = await dbReadonly`
-          SELECT DISTINCT ON (pm.malote)
-            pm.malote AS barra,
-            pm.id_minuta
-          FROM pre_minuta pm
-          WHERE pm.malote = ANY(${todosMesBarcodes})
-          ORDER BY pm.malote, pm.data_hora DESC
+        // 1. Busca PRIMÁRIA em volumes.barras
+        const detalhesMesVol = await dbReadonly`
+          SELECT DISTINCT ON (v.barras)
+            v.barras AS barra,
+            v.id_minuta
+          FROM volumes v
+          WHERE v.barras = ANY(${todosMesBarcodes})
+            AND v.barras IS NOT NULL AND LENGTH(v.barras) = 17
         `;
 
-        for (const row of detalhesMesPM) {
+        for (const row of detalhesMesVol) {
           if (row.id_minuta) {
             barcodeMesMinutaMap.set(String(row.barra), Number(row.id_minuta));
             minutasUnicasMes.add(Number(row.id_minuta));
           }
         }
 
-        // 2. Fallback em historico_volume
+        // 2. Fallback em pre_minuta
+        const faltantesMesPM = todosMesBarcodes.filter((b) => !barcodeMesMinutaMap.has(b));
+        if (faltantesMesPM.length > 0) {
+          const detalhesMesPM = await dbReadonly`
+            SELECT DISTINCT ON (pm.malote)
+              pm.malote AS barra,
+              pm.id_minuta
+            FROM pre_minuta pm
+            WHERE pm.malote = ANY(${faltantesMesPM})
+            ORDER BY pm.malote, pm.data_hora DESC
+          `;
+
+          for (const row of detalhesMesPM) {
+            if (row.id_minuta) {
+              barcodeMesMinutaMap.set(String(row.barra), Number(row.id_minuta));
+              minutasUnicasMes.add(Number(row.id_minuta));
+            }
+          }
+        }
+
+        // 3. Fallback em historico_volume
         const faltantesMes = todosMesBarcodes.filter((b) => !barcodeMesMinutaMap.has(b));
         if (faltantesMes.length > 0) {
           const detalhes = await dbReadonly`
@@ -1192,24 +1306,44 @@ export const inventoryRouter = createTRPCRouter({
       const minutasUnicasEncontradas = new Set<number>();
 
       if (todosBarcodes.length > 0) {
-        // 1. Busca primária em pre_minuta
-        const detalhesPM = await dbReadonly`
-          SELECT DISTINCT ON (pm.malote)
-            pm.malote AS barra,
-            pm.id_minuta
-          FROM pre_minuta pm
-          WHERE pm.malote = ANY(${todosBarcodes})
-          ORDER BY pm.malote, pm.data_hora DESC
+        // 1. Busca PRIMÁRIA em volumes.barras
+        const detalhesVol = await dbReadonly`
+          SELECT DISTINCT ON (v.barras)
+            v.barras AS barra,
+            v.id_minuta
+          FROM volumes v
+          WHERE v.barras = ANY(${todosBarcodes})
+            AND v.barras IS NOT NULL AND LENGTH(v.barras) = 17
         `;
 
-        for (const row of detalhesPM) {
+        for (const row of detalhesVol) {
           if (row.id_minuta) {
             barcodeParaMinuta.set(String(row.barra), Number(row.id_minuta));
             minutasUnicasEncontradas.add(Number(row.id_minuta));
           }
         }
 
-        // 2. Fallback em historico_volume
+        // 2. Fallback em pre_minuta
+        const faltantesPM = todosBarcodes.filter((b) => !barcodeParaMinuta.has(b));
+        if (faltantesPM.length > 0) {
+          const detalhesPM = await dbReadonly`
+            SELECT DISTINCT ON (pm.malote)
+              pm.malote AS barra,
+              pm.id_minuta
+            FROM pre_minuta pm
+            WHERE pm.malote = ANY(${faltantesPM})
+            ORDER BY pm.malote, pm.data_hora DESC
+          `;
+
+          for (const row of detalhesPM) {
+            if (row.id_minuta) {
+              barcodeParaMinuta.set(String(row.barra), Number(row.id_minuta));
+              minutasUnicasEncontradas.add(Number(row.id_minuta));
+            }
+          }
+        }
+
+        // 3. Fallback em historico_volume
         const faltantesHist = todosBarcodes.filter((b) => !barcodeParaMinuta.has(b));
         if (faltantesHist.length > 0) {
           const detalhesBarcodes = await dbReadonly`
