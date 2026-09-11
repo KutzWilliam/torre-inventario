@@ -793,6 +793,25 @@ export const inventoryRouter = createTRPCRouter({
           }
         }
 
+        // Buscar o último manifesto via historico_volume para todos os barcodes
+        // (volumes.barras não tem manifesto, precisamos buscar do histórico)
+        const ultimosManifestos = await dbReadonly`
+          SELECT DISTINCT ON (h.barra)
+            h.barra,
+            h.manifesto AS id_manifesto
+          FROM historico_volume h
+          WHERE h.barra = ANY(${allBarcodes})
+            AND h.manifesto IS NOT NULL AND h.manifesto > 0
+          ORDER BY h.barra, h.id DESC
+        `;
+        for (const m of ultimosManifestos) {
+          const item = detalheMap.get(String(m.barra));
+          if (item && m.id_manifesto != null) {
+            item.id_manifesto = Number(m.id_manifesto);
+          }
+        }
+
+
         const ultimasBipagens = await dbReadonly`
           SELECT DISTINCT ON (h.barra)
             h.barra,
