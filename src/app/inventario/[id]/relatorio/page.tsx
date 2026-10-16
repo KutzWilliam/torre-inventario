@@ -188,6 +188,19 @@ function MinutaGroup({ idMinuta, itens }: { idMinuta: string; itens: ItemInventa
                   Praça {primeiroDetalhe.praca}
                 </span>
               )}
+              {idMinuta !== "SEM_MINUTA" && (
+                <Link
+                  href={`/investigacao?minuta=${idMinuta}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-green-50 hover:bg-green-100 text-green-800 border border-green-200 transition-colors shadow-2xs ml-1"
+                  title="Abrir tela de investigação desta minuta"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                  </svg>
+                  Investigar
+                </Link>
+              )}
             </div>
             <p className="text-sm text-slate-500 mt-0.5">{rota}</p>
           </div>

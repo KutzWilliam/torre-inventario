@@ -18,6 +18,7 @@ O grande diferencial deste sistema é sua capacidade de interligar essas diverg�
 5. **Análise Logística Profunda:** No painel de relatório final e na exportação para Excel, o sistema busca em paralelo duas frentes no banco legado:
    - **Última Bipagem:** Consulta as tabelas `historico_volume` e `picking` para revelar a última unidade em que o volume foi lido e o tipo de movimentação (Embarque ou Desembarque).
    - **Situação Atual:** Cruza a tabela `frete_hist` (histórico por minuta) com a tabela de tipagem `tipo_oco` para trazer a situação do sistema mais recente associada àquela minuta (ex: *AVARIA TOTAL, RECUSA, ROUBO*).
+6. **Investigação de Minutas & Extravios (Setor Solução):** Tela dedicada (`/investigacao`) onde o operador pode pesquisar por Minuta, CTe ou Código de Barras de 17 dígitos. O sistema cruza todas as movimentações da Brudam (Embarques, Desembarques, Manifestos, Placas) com os inventários físicos do pátio para diagnosticar fragmentação de carga (ex: 4 volumes em Ponta Grossa e 2 volumes em Curitiba), gerando veredito automático e permitindo copiar um resumo completo formatado para chamados.
 
 ## 🏗 Arquitetura
 
